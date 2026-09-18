@@ -187,7 +187,14 @@ def cached_monthly_pull(
         )
         if extra_where:
             clause = f"({clause}) AND ({extra_where})"
-        df = fetch(ds, select=select, where=clause, group=group, order=order)
+        try:
+            df = fetch(ds, select=select, where=clause, group=group, order=order)
+        except RuntimeError as exc:
+            # One unreachable month must not abort the remaining pull. The file
+            # is left absent rather than written empty, so a later re-run picks
+            # it up instead of treating the gap as settled.
+            log.warning("%s %s: FAILED, skipping (%s)", ds.name, f"{win_start:%Y-%m}", exc)
+            continue
         if transform is not None and not df.is_empty():
             df = transform(df)
         # Write even when empty so a genuinely empty month is not refetched forever.

@@ -97,18 +97,21 @@ object anyway: the accumulation scale was never identified from speed data.
 
 ## Result 3 — The speed effect is small and not cleanly separable
 
-Two-way fixed-effects exposure design, in-cordon bus segments against Brooklyn
-never-takers (Manhattan above 60th is contaminated by diverted traffic and is
-estimated separately rather than used as a control):
+Two-way fixed-effects exposure design, 298 in-cordon bus segments against 3,529
+outer-borough never-takers in Brooklyn, Queens and the Bronx (Manhattan above
+60th is contaminated by diverted traffic and is estimated separately rather than
+used as a control):
 
 | Term | Coefficient | SE | t |
 |---|---|---|---|
-| in-cordon × post | **+0.0178** | 0.0066 | 2.71 |
-| above-60th × post | +0.0098 | 0.0086 | 1.13 |
+| in-cordon × post | **+0.0151** | 0.0062 | 2.46 |
+| above-60th × post | +0.0071 | 0.0083 | 0.85 |
 
-That is a **+1.8%** speed effect. But a placebo that pretends the policy began in
-January 2024, using pre-period data only, returns **−0.0160 (t = −2.69)** — a
-spurious effect of comparable magnitude and opposite sign. The event study shows
+That is a **+1.5%** speed effect. But a placebo that pretends the policy began in
+January 2024, using pre-period data only, returns **−0.0121 (t = −2.09)** — a
+spurious effect of comparable magnitude and opposite sign. Restricting the
+control group to Brooklyn alone gives +1.8% and a −1.6% placebo, so the finding
+does not turn on the choice of never-takers. The event study shows
 a visible jump at policy start, but pre-period coefficients wander from +0.003 to
 +0.070, so parallel trends does not hold.
 
@@ -143,6 +146,9 @@ pinned jam-accumulation parameter:
 |---|---|---|---|
 | 30 | 0.263 | **0.138** | 0.212 |
 | 60 | 0.273 | **0.138** | 0.235 |
+| 90 | 0.279 | **0.138** | 0.235 |
+| 120 | 0.280 | **0.138** | 0.235 |
+| 150 | 0.283 | **0.138** | 0.238 |
 
 **The unconstrained model fits about twice as well, at every value of k_jam.**
 Reported rather than buried: the physics constraint costs accuracy here and does
@@ -150,10 +156,17 @@ not improve extrapolation across the policy shock.
 
 The frozen-physics experiment — freeze the fundamental diagram at its pre-policy
 values, re-estimate only the behaviour block on post-policy data, and measure how
-far the behaviour parameters move — gives a relative shift of **1.78 under the
-policy against 1.75 under a no-policy placebo** (2.71 vs 2.98 at k_jam = 60). The
-behavioural parameter shift does not distinguish the policy from nothing
-happening.
+far the behaviour parameters move — gives a relative shift that tracks its
+own placebo at every pin:
+
+| k_jam | 30 | 60 | 90 | 120 | 150 |
+|---|---|---|---|---|---|
+| under the policy | 1.78 | 2.71 | 3.71 | 3.67 | 4.07 |
+| under a no-policy placebo | 1.75 | 2.98 | 3.67 | 3.76 | 4.04 |
+
+The behavioural parameter shift does not distinguish the policy from nothing
+happening — and the two series move together as k_jam changes, which says the
+quantity is tracking the pin rather than the policy.
 
 ## Result 6 — Decomposition, with the bounds left visible
 

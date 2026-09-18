@@ -1,0 +1,72 @@
+[
+  {
+    "k_jam": 30,
+    "rmse_pre": 0.2522412836551666,
+    "rmse_placebo": 0.2614503502845764,
+    "rmse_post": 0.26279762387275696,
+    "abl_rmse_pre": 0.11421458423137665,
+    "abl_rmse_placebo": 0.11884941160678864,
+    "abl_rmse_post": 0.13796672224998474,
+    "behaviour_shift_l2": 1.7808170318603516,
+    "rmse_post_frozen": 0.21158969402313232,
+    "behaviour_shift_placebo_l2": 1.7464884519577026,
+    "n_pre_days": 514,
+    "n_post_days": 573
+  },
+  {
+    "k_jam": 60,
+    "rmse_pre": 0.26225733757019043,
+    "rmse_placebo": 0.2714288532733917,
+    "rmse_post": 0.2726457118988037,
+    "abl_rmse_pre": 0.11421458423137665,
+    "abl_rmse_placebo": 0.11884941160678864,
+    "abl_rmse_post": 0.13796672224998474,
+    "behaviour_shift_l2": 2.712578058242798,
+    "rmse_post_frozen": 0.23480011522769928,
+    "behaviour_shift_placebo_l2": 2.9835009574890137,
+    "n_pre_days": 514,
+    "n_post_days": 573
+  },
+  {
+    "k_jam": 90,
+    "rmse_pre": 0.2687976062297821,
+    "rmse_placebo": 0.2783679962158203,
+    "rmse_post": 0.27928441762924194,
+    "abl_rmse_pre": 0.11421458423137665,
+    "abl_rmse_placebo": 0.11884941160678864,
+    "abl_rmse_post": 0.13796672224998474,
+    "behaviour_shift_l2": 3.7100703716278076,
+    "rmse_post_frozen": 0.2350562959909439,
+    "behaviour_shift_placebo_l2": 3.6656219959259033,
+    "n_pre_days": 514,
+    "n_post_days": 573
+  },
+  {
+    "k_jam": 120,
+    "rmse_pre": 0.2699550688266754,
+    "rmse_placebo": 0.279518187046051,
+    "rmse_post": 0.28046703338623047,
+    "abl_rmse_pre": 0.11421458423137665,
+    "abl_rmse_placebo": 0.11884941160678864,
+    "abl_rmse_post": 0.13796672224998474,
+    "behaviour_shift_l2": 3.6682896614074707,
+    "rmse_post_frozen": 0.23520752787590027,
+    "behaviour_shift_placebo_l2": 3.757906436920166,
+    "n_pre_days": 514,
+    "n_post_days": 573
+  },
+  {
+    "k_jam": 150,
+    "rmse_pre": 0.2723737359046936,
+    "rmse_placebo": 0.2818424105644226,
+    "rmse_post": 0.28271904587745667,
+    "abl_rmse_pre": 0.11421458423137665,
+    "abl_rmse_placebo": 0.11884941160678864,
+    "abl_rmse_post": 0.13796672224998474,
+    "behaviour_shift_l2": 4.066107749938965,
+    "rmse_post_frozen": 0.23836645483970642,
+    "behaviour_shift_placebo_l2": 4.041392803192139,
+    "n_pre_days": 514,
+    "n_post_days": 573
+  }
+]
