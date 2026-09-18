@@ -13,15 +13,11 @@ across them: `crz` (treated), `above60` (spillover), `outer` (never-taker).
 
 from __future__ import annotations
 
-from datetime import date
-
 import polars as pl
 
-from ..data import bus_speeds
-from ..data import tlc
-from ..data import weather
-from ..network.zones import zone_centroids
+from ..data import bus_speeds, tlc, weather
 from ..data.registry import POLICY_START
+from ..network.zones import zone_centroids
 
 # Weekday daytime only: the toll's peak window, and the hours where congestion
 # actually binds.

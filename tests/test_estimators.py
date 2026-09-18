@@ -10,10 +10,10 @@ from __future__ import annotations
 import numpy as np
 import polars as pl
 import pytest
+import torch
 
 from src.mtwin.analysis.exposure_did import event_study, fit
 from src.mtwin.models.twin import MonotoneMFD
-import torch
 
 
 def _panel(effect: float = 0.05, level_gap: float = 2.0, unbalanced: bool = False,
@@ -86,7 +86,8 @@ def test_mfd_is_monotone_by_construction():
         m.raw.normal_(0, 3.0)
     x = torch.linspace(0, 1, 200)
     for r in range(3):
-        v = m(x, torch.full((200,), r, dtype=torch.long))
+        with torch.no_grad():
+            v = m(x, torch.full((200,), r, dtype=torch.long))
         assert torch.all(v[1:] <= v[:-1] + 1e-6), "MFD must be non-increasing"
         assert abs(float(v[0]) - 1.0) < 1e-3, "f(0) must be 1"
         assert float(v[-1]) < 0.02, "f(1) must be ~0"

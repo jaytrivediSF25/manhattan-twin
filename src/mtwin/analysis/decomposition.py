@@ -23,7 +23,7 @@ from dataclasses import dataclass
 
 import polars as pl
 
-from ..data import bt_crossings, crz_entries, subway
+from ..data import bt_crossings, subway
 
 # Vehicle occupancy range used to convert displaced person-trips into vehicle
 # trips. The interval, not a point, is the honest object.
@@ -82,17 +82,47 @@ def tunnel_volume_change(pre_year: int = 2024, post_year: int = 2025) -> pl.Data
               ).sort("facility"))
 
 
-def build(retiming_per_day: float, excluded_pct_change: float,
-          subway_pre: float, subway_post: float,
-          total_entries_per_day: float) -> list[Component]:
-    """Assemble the identity with each term carried as an interval."""
-    rider_delta = subway_post - subway_pre
+def summarise(pre_year: int = 2024, post_year: int = 2025) -> list[Component]:
+    """Run the decomposition end to end and return each term as an interval.
+
+    Every term is measured from data rather than passed in, so the numbers in
+    the write-up can be regenerated rather than transcribed.
+    """
+    import glob
+
+    import polars as pl
+
+    from . import bunching_rd as brd
+
+    crz = pl.concat(
+        [pl.read_parquet(f) for f in sorted(glob.glob("data/raw/crz_entries/*.parquet"))],
+        how="diagonal_relaxed",
+    )
+
+    # Retiming: the bunching jump, spread over the six 10-minute blocks of the
+    # hour following the toll step.
+    prof = brd.block_profile(crz, vehicle_class="1 - Cars, Pickups and Vans")
+    jump = brd.estimate(prof, bandwidth=90).jump
+    retimed = jump * 6
+
+    # Mode shift: an upper bound, because not every new rider came out of a car.
+    subway_pre, subway_post = subway_delta(pre_year, post_year)
+    riders = max(subway_post - subway_pre, 0.0)
+
+    # Measured vehicle volume change at the only entry points with an open
+    # pre-period.
+    tunnels = tunnel_volume_change(pre_year, post_year)
+    tunnel_drop = 0.0
+    if not tunnels.is_empty() and str(pre_year) in tunnels.columns:
+        tunnel_drop = float(
+            (tunnels[str(pre_year)] - tunnels[str(post_year)]).sum()
+        )
+
     return [
-        Component("retiming", retiming_per_day * 0.8, retiming_per_day * 1.2,
-                  "veh/day", "bunching RD at the 21:00 toll step"),
-        Component("rerouting", total_entries_per_day * excluded_pct_change / 100 * 0.8,
-                  total_entries_per_day * excluded_pct_change / 100 * 1.2,
-                  "veh/day", "excluded-roadway entry share"),
-        Component("mode shift", 0.0, max(rider_delta, 0.0) / OCCUPANCY_LO,
-                  "veh/day", "UPPER BOUND: subway delta / occupancy"),
+        Component("retiming", retimed * 0.8, retimed * 1.2, "veh/day",
+                  "bunching RD at the 21:00 toll step"),
+        Component("volume drop", tunnel_drop * 0.8, tunnel_drop * 1.2, "veh/day",
+                  "Carey + Queens Midtown, the only CRZ entries with a pre-period"),
+        Component("mode shift", 0.0, riders / OCCUPANCY_LO, "veh/day",
+                  "UPPER BOUND: subway delta / occupancy"),
     ]

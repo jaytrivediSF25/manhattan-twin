@@ -9,7 +9,7 @@ import polars as pl
 import torch
 
 from ..panel.build import reservoir_panel
-from .reservoir import RESERVOIRS, reservoir_capacity
+from .reservoir import reservoir_capacity
 from .twin import Twin, TwinConfig, evaluate, fit
 
 FEATURES = ["sin_h", "cos_h", "sin_dow", "cos_dow", "sin_mo", "cos_mo", "rain"]

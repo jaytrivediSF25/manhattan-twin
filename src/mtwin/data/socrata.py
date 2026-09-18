@@ -13,10 +13,10 @@ from __future__ import annotations
 import logging
 import os
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Iterator, Sequence
 
 import httpx
 import polars as pl

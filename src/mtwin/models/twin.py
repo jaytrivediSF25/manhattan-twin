@@ -27,11 +27,11 @@ sweep of that pin.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 import torch
-import torch.nn as nn
+from torch import nn
 
 DEVICE = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 GRID = 64  # resolution of the monotone MFD shape function
