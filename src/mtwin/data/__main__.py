@@ -10,6 +10,8 @@ SOURCES = {
     "dot": "dot_speeds",
     "subway": "subway",
     "weather": "weather",
+    "closures": "closures",
+    "citibike": "citibike",
 }
 
 if __name__ == "__main__":

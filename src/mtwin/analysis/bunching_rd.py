@@ -148,3 +148,101 @@ def estimate(
         observed=entries,
         fitted=fitted,
     )
+
+
+# --- The full toll schedule --------------------------------------------------
+# Verified against the data, not assumed. Three clock thresholds exist, and only
+# one of them is a price cut:
+#
+#   21:00  every day      $9.00 -> $2.25   price FALLS
+#   05:00  weekdays       $2.25 -> $9.00   price RISES
+#   09:00  weekends       $2.25 -> $9.00   price RISES
+#
+# The sign prediction is what makes this a test rather than a description. At a
+# price cut, drivers wait and entries jump up after the threshold. At a price
+# rise they go early, so entries are pulled forward and the jump is NEGATIVE.
+# A fitting artefact at an hour boundary has no reason to flip sign with the
+# direction of the price change.
+
+PEAK_TOLL, OVERNIGHT_TOLL = 9.00, 2.25
+
+THRESHOLDS = {
+    "21:00 price cut (all days)": dict(minute=21 * 60, weekdays=None, direction=-1),
+    "05:00 price rise (weekdays)": dict(minute=5 * 60, weekdays=True, direction=+1),
+    "09:00 price rise (weekends)": dict(minute=9 * 60, weekdays=False, direction=+1),
+}
+
+
+def price_semi_elasticity(jump_pct: float, direction: int) -> float:
+    """Entry response per log point of toll, signed so cuts and rises compare.
+
+    direction = -1 for a price cut, +1 for a rise. Returns d(log entries) /
+    d(log toll), which is negative for a normal demand response either way.
+    """
+    dlog_price = np.log(OVERNIGHT_TOLL / PEAK_TOLL) * (-direction)
+    return jump_pct / dlog_price if dlog_price else float("nan")
+
+
+def all_thresholds(
+    df: pl.DataFrame,
+    *,
+    vehicle_class: str | None = "1 - Cars, Pickups and Vans",
+    bandwidth: int = 90,
+) -> pl.DataFrame:
+    """Estimate every toll threshold and report the implied elasticity."""
+    rows = []
+    for name, spec in THRESHOLDS.items():
+        wd = spec["weekdays"]
+        if wd is None:
+            prof = block_profile(df, vehicle_class=vehicle_class, weekdays_only=False)
+        else:
+            sub = df.filter(
+                ~pl.col("day_of_week").is_in(["Saturday", "Sunday"]) if wd
+                else pl.col("day_of_week").is_in(["Saturday", "Sunday"])
+            )
+            prof = block_profile(sub, vehicle_class=vehicle_class, weekdays_only=False)
+        try:
+            r = estimate(prof, threshold=spec["minute"], bandwidth=bandwidth)
+        except ValueError:
+            continue
+        rows.append(
+            {
+                "threshold": name,
+                "price_direction": "cut" if spec["direction"] < 0 else "rise",
+                "jump_pct": r.jump_pct,
+                "jump_per_block": r.jump,
+                "placebo_p": r.placebo_p,
+                "semi_elasticity": price_semi_elasticity(r.jump_pct, spec["direction"]),
+                "sign_as_predicted": (r.jump_pct > 0) == (spec["direction"] < 0),
+            }
+        )
+    return pl.DataFrame(rows)
+
+
+def habituation(
+    df: pl.DataFrame,
+    *,
+    vehicle_class: str | None = "1 - Cars, Pickups and Vans",
+    bandwidth: int = 90,
+) -> pl.DataFrame:
+    """Re-estimate the 21:00 jump quarter by quarter.
+
+    Nineteen months of 10-minute data is long enough to ask whether the timing
+    response fades as drivers habituate to the toll -- a question shorter panels
+    could not address.
+    """
+    d = df.with_columns(
+        (pl.col("toll_date").dt.year().cast(pl.Utf8) + "Q"
+         + pl.col("toll_date").dt.quarter().cast(pl.Utf8)).alias("quarter")
+    )
+    rows = []
+    for q in sorted(d["quarter"].unique().to_list()):
+        sub = d.filter(pl.col("quarter") == q)
+        prof = block_profile(sub, vehicle_class=vehicle_class, weekdays_only=False)
+        try:
+            r = estimate(prof, bandwidth=bandwidth, n_placebo=60)
+        except ValueError:
+            continue
+        rows.append({"quarter": q, "jump_pct": r.jump_pct, "jump_per_block": r.jump,
+                     "placebo_p": r.placebo_p})
+    return pl.DataFrame(rows)

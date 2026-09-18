@@ -36,6 +36,7 @@ log = logging.getLogger(__name__)
 CDN = "https://d37ci6vzurychx.cloudfront.net/trip-data"
 SUBDIR_YELLOW = "tlc_yellow_cells"
 SUBDIR_CITY = "tlc_yellow_cells_city"
+SUBDIR_FHV = "tlc_fhv_cells"
 LOOKUP = RAW / "taxi_zone_lookup.csv"
 
 # Scratch space for raw monthly parquet. FHV files are ~500 MB and are deleted
@@ -176,6 +177,59 @@ def load_yellow(subdir: str = SUBDIR_YELLOW) -> pl.DataFrame:
     frames = [pl.read_parquet(f) for f in files]
     frames = [f for f in frames if not f.is_empty()]
     return pl.concat(frames, how="diagonal_relaxed") if frames else pl.DataFrame()
+
+
+def pull_fhv(start: date = reg.DATA_START, end: date = reg.DATA_END) -> list[Path]:
+    """High-volume FHV (Uber/Lyft) cells, streamed and discarded month by month.
+
+    FHV files are ~500 MB each, so ~21 GB for the full span -- they are deleted
+    straight after aggregation rather than cached. The payoff is outer-borough
+    coverage: yellow taxis barely leave Manhattan, which left the never-taker
+    group in the taxi exposure design at 9-27 OD pairs per month from a churning
+    set. FHV covers the outer boroughs properly.
+
+    FHV records carry their own column names (pickup_datetime, trip_miles) and
+    have no RatecodeID or store_and_fwd_flag, so the yellow hygiene filter does
+    not apply; shared rides are dropped instead, since pooled detours corrupt
+    the implied speed.
+    """
+    out_dir = RAW / SUBDIR_FHV
+    out_dir.mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
+    con = duckdb.connect()
+
+    for win_start, _ in month_windows(start, end):
+        out = out_dir / f"{win_start:%Y-%m}.parquet"
+        written.append(out)
+        if out.exists():
+            log.info("tlc fhv %s: cached", f"{win_start:%Y-%m}")
+            continue
+
+        raw = SCRATCH / f"fhvhv_{win_start:%Y-%m}.parquet"
+        if not raw.exists() and not _download(_month_url("fhvhv", win_start), raw):
+            continue
+        try:
+            con.execute(
+                f"""CREATE OR REPLACE TEMP VIEW clean AS
+                    SELECT * FROM read_parquet('{raw}')
+                    WHERE shared_match_flag IS NULL OR shared_match_flag <> 'Y'"""
+            )
+            sql = _aggregate_sql(
+                raw, "pickup_datetime", "dropoff_datetime", "trip_miles", zones_filter=None
+            ).replace(f"read_parquet('{raw}')", "clean")
+            df = con.execute(sql).pl()
+            df.write_parquet(out)
+            log.info("tlc fhv %s: %d cells -> %s", f"{win_start:%Y-%m}", df.height, out.name)
+        finally:
+            # Always remove the raw file, even on failure: 500 MB per month
+            # exhausts the disk within a few iterations otherwise.
+            raw.unlink(missing_ok=True)
+    con.close()
+    return written
+
+
+def load_fhv() -> pl.DataFrame:
+    return load_yellow(subdir=SUBDIR_FHV)
 
 
 def pull(start: date = reg.DATA_START, end: date = reg.DATA_END) -> None:

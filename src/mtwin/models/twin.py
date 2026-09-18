@@ -82,14 +82,46 @@ class DemandNet(nn.Module):
         return torch.nn.functional.softplus(self.net(z)).squeeze(-1)
 
 
+class FreeClosure(nn.Module):
+    """Unconstrained speed multiplier f(x) on normalised accumulation.
+
+    Same role and same inputs as `MonotoneMFD`, but nothing forces it to start
+    at 1, end at 0, or decrease. Swapping one for the other inside an otherwise
+    identical rollout isolates the *monotonicity constraint*, which is the thing
+    the fundamental diagram actually asserts.
+    """
+
+    def __init__(self, n_reservoirs: int, hidden: int = 32):
+        super().__init__()
+        self.n_reservoirs = n_reservoirs
+        self.net = nn.Sequential(
+            nn.Linear(1 + n_reservoirs, hidden), nn.Tanh(),
+            nn.Linear(hidden, hidden), nn.Tanh(),
+            nn.Linear(hidden, 1),
+        )
+
+    def forward(self, x: torch.Tensor, res_idx: torch.Tensor) -> torch.Tensor:
+        onehot = torch.nn.functional.one_hot(res_idx, self.n_reservoirs).float()
+        z = torch.cat([x.unsqueeze(-1), onehot], dim=-1)
+        return torch.sigmoid(self.net(z)).squeeze(-1).clamp(min=1e-3)
+
+
 @dataclass
 class TwinConfig:
     n_reservoirs: int
     n_feat: int
-    physics: bool = True          # False reproduces the ablation
+    # "monotone" -> fundamental diagram, decreasing by construction
+    # "free"     -> same rollout and conservation, unconstrained closure
+    # "none"     -> no rollout at all, direct regression from covariates
+    closure: str = "monotone"
     lr: float = 1e-2
     epochs: int = 400
     hours: int = 24
+
+    @property
+    def physics(self) -> bool:
+        """True whenever the conservation rollout is used at all."""
+        return self.closure != "none"
 
 
 class Twin(nn.Module):
@@ -102,16 +134,27 @@ class Twin(nn.Module):
     accumulation is a latent state, and speed and trip production are both
     outputs compared against data.
 
-    With `physics=False` the fundamental-diagram closure is replaced by a free
-    regression from covariates to speed. That ablation is mandatory: if physics
-    does not improve extrapolation, the framing has to be reported as not
-    working rather than quietly kept.
+    Three arms, because comparing only the first and last confounds two
+    different things:
+
+      closure="monotone"  rollout + fundamental diagram decreasing by construction
+      closure="free"      rollout + conservation, unconstrained closure
+      closure="none"      no rollout; direct regression from covariates to speed
+
+    "monotone" against "none" compares whole *architectures*: one must route
+    every hour through accumulation dynamics driven by a handful of smooth
+    covariates, the other can fit any hour-of-day pattern directly. Losing that
+    comparison says little about the physics.
+
+    "monotone" against "free" is the fair test. Same rollout, same conservation,
+    same capacity -- only the monotonicity constraint differs, which is what the
+    fundamental diagram actually asserts.
     """
 
     def __init__(self, cfg: TwinConfig):
         super().__init__()
         self.cfg = cfg
-        self.mfd = MonotoneMFD(cfg.n_reservoirs)
+        self.mfd = MonotoneMFD(cfg.n_reservoirs) if cfg.closure == "monotone" else FreeClosure(cfg.n_reservoirs)
         self.demand = DemandNet(cfg.n_reservoirs, cfg.n_feat)
         self.log_vfree = nn.Parameter(torch.zeros(cfg.n_reservoirs) + float(np.log(12.0)))
         # Mean trip length L_r and taxi sampling share fold into one positive

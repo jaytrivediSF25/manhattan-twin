@@ -92,29 +92,30 @@ def run_experiments(k_jam: float = 120.0, epochs: int = 400, seed: int = 0) -> d
 
     R = len(T["res_names"])
     F = len(FEATURES)
+    res = {"k_jam": k_jam}
 
-    # --- physics twin -------------------------------------------------------
-    twin = Twin(TwinConfig(R, F, physics=True, epochs=epochs))
-    fit(twin, *args(PRE), epochs=epochs)
-    res = {
-        "k_jam": k_jam,
-        "rmse_pre": evaluate(twin, PRE["feats"], T["res_onehot"], T["n_jam"], PRE["y_speed"], PRE["mask"]),
-        "rmse_placebo": evaluate(twin, PLACEBO["feats"], T["res_onehot"], T["n_jam"], PLACEBO["y_speed"], PLACEBO["mask"]),
-        "rmse_post": evaluate(twin, POST["feats"], T["res_onehot"], T["n_jam"], POST["y_speed"], POST["mask"]),
-    }
+    # --- three arms ---------------------------------------------------------
+    # "monotone" vs "free" is the fair test: same rollout, same conservation,
+    # only the monotonicity constraint differs. "none" is the architecture
+    # comparison and is reported separately so the two are not conflated.
+    twins = {}
+    for arm in ("monotone", "free", "none"):
+        torch.manual_seed(seed)
+        m = Twin(TwinConfig(R, F, closure=arm, epochs=epochs))
+        fit(m, *args(PRE), epochs=epochs)
+        twins[arm] = m
+        for label, S in (("pre", PRE), ("placebo", PLACEBO), ("post", POST)):
+            res[f"{arm}_rmse_{label}"] = evaluate(
+                m, S["feats"], T["res_onehot"], T["n_jam"], S["y_speed"], S["mask"]
+            )
+        res[f"{arm}_params"] = sum(p.numel() for p in m.parameters() if p.requires_grad)
 
-    # --- ablation: identical architecture, no physics closure ---------------
-    torch.manual_seed(seed)
-    abl = Twin(TwinConfig(R, F, physics=False, epochs=epochs))
-    fit(abl, *args(PRE), epochs=epochs)
-    res["abl_rmse_pre"] = evaluate(abl, PRE["feats"], T["res_onehot"], T["n_jam"], PRE["y_speed"], PRE["mask"])
-    res["abl_rmse_placebo"] = evaluate(abl, PLACEBO["feats"], T["res_onehot"], T["n_jam"], PLACEBO["y_speed"], PLACEBO["mask"])
-    res["abl_rmse_post"] = evaluate(abl, POST["feats"], T["res_onehot"], T["n_jam"], POST["y_speed"], POST["mask"])
+    twin = twins["monotone"]
 
     # --- frozen physics, re-estimated behaviour -----------------------------
     import copy
 
-    frozen = copy.deepcopy(twin)
+    frozen = copy.deepcopy(twin)  # frozen-physics uses the monotone arm
     before = torch.cat([p.detach().flatten() for p in frozen.demand.parameters()]).clone()
     fit(frozen, *args(POST), freeze_physics=True, epochs=epochs)
     after = torch.cat([p.detach().flatten() for p in frozen.demand.parameters()])

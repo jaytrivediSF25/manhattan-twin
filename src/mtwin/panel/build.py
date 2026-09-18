@@ -90,11 +90,27 @@ def taxi_od_panel(*, drop_straddle: bool = False) -> pl.DataFrame:
     return _add_design_cols(panel)
 
 
-def bus_segment_panel(boroughs=("Manhattan", "Brooklyn", "Queens", "Bronx")) -> pl.DataFrame:
-    """Bus segment x month panel of segment speed."""
+def bus_segment_panel(
+    boroughs=("Manhattan", "Brooklyn", "Queens", "Bronx"),
+    *,
+    running_only: bool = False,
+) -> pl.DataFrame:
+    """Bus segment x month panel of segment speed.
+
+    `running_only=True` subtracts estimated dwell before computing speed. Dwell
+    does not respond to congestion, so leaving it in attenuates any traffic
+    effect by roughly 1 / (1 - dwell share); see `panel.dwell`.
+    """
     df = bus_speeds.load(boroughs=boroughs)
     if df.is_empty():
         return df
+    if running_only:
+        from .dwell import add_running_speed, estimate_overhead
+
+        df = add_running_speed(df, estimate_overhead(df))
+        # Downstream aggregation works off road_distance and average_travel_time,
+        # so swap in the dwell-free time and let the rest of the path stand.
+        df = df.with_columns(pl.col("running_time").alias("average_travel_time"))
     df = df.with_columns(
         ((pl.col("timepoint_stop_latitude") + pl.col("next_timepoint_stop_latitude")) / 2).alias("mid_lat")
     )
@@ -108,7 +124,7 @@ def bus_segment_panel(boroughs=("Manhattan", "Brooklyn", "Queens", "Bronx")) -> 
         & ~pl.col("day_of_week").is_in(["Saturday", "Sunday"])
     )
     panel = (
-        d.group_by(["segment_id", "grp", _period_index(pl.col("timestamp")).alias("period")])
+        d.group_by(["segment_id", "grp", "route_id", _period_index(pl.col("timestamp")).alias("period")])
         .agg(
             [
                 (pl.col("road_distance") * pl.col("bus_trip_count")).sum().alias("veh_miles"),
