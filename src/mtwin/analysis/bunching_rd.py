@@ -167,9 +167,9 @@ def estimate(
 PEAK_TOLL, OVERNIGHT_TOLL = 9.00, 2.25
 
 THRESHOLDS = {
-    "21:00 price cut (all days)": dict(minute=21 * 60, weekdays=None, direction=-1),
-    "05:00 price rise (weekdays)": dict(minute=5 * 60, weekdays=True, direction=+1),
-    "09:00 price rise (weekends)": dict(minute=9 * 60, weekdays=False, direction=+1),
+    "21:00 price cut (all days)": {"minute": 21 * 60, "weekdays": None, "direction": -1},
+    "05:00 price rise (weekdays)": {"minute": 5 * 60, "weekdays": True, "direction": +1},
+    "09:00 price rise (weekends)": {"minute": 9 * 60, "weekdays": False, "direction": +1},
 }
 
 

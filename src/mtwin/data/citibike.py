@@ -60,7 +60,9 @@ def pull(start: date = date(2023, 1, 1), end: date = date(2026, 8, 1)) -> None:
                 with z.open(name) as fh:
                     try:
                         df = pl.read_csv(fh.read(), infer_schema_length=5000, ignore_errors=True)
-                    except Exception as exc:  # malformed month, skip rather than abort
+                    except (pl.exceptions.PolarsError, UnicodeDecodeError, ValueError) as exc:
+                        # Citi Bike has shipped malformed months before; skip the
+                        # bad file rather than abort the whole ingest.
                         log.warning("citibike %s/%s: %s", f"{win_start:%Y-%m}", name, exc)
                         continue
                 cols = {c.lower(): c for c in df.columns}

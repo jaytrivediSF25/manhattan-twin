@@ -53,7 +53,7 @@ def estimate_overhead(df: pl.DataFrame, by: str | None = None) -> float | pl.Dat
         y = frame["average_travel_time"].to_numpy()
         if len(x) < 50:
             return float("nan")
-        slope, intercept = np.polyfit(x, y, 1)
+        _slope, intercept = np.polyfit(x, y, 1)
         return float(max(intercept, 0.0))
 
     if by is None:
