@@ -155,6 +155,29 @@ policy against 1.75 under a no-policy placebo** (2.71 vs 2.98 at k_jam = 60). Th
 behavioural parameter shift does not distinguish the policy from nothing
 happening.
 
+## Result 6 — Decomposition, with the bounds left visible
+
+An accounting identity, not a regression of the residual on mode-shift
+covariates: subway ridership and the traffic residual are outcomes of the same
+shock, so regressing one on the other yields a coefficient with no causal
+reading.
+
+| Component | Estimate | Basis |
+|---|---|---|
+| **Retiming** | ~2,380 cars/day shifted into the hour after 21:00 | Bunching RD, assumption-light |
+| **Vehicle volume** | Hugh L. Carey −2.6%, Queens Midtown −1.1% | The only CRZ entries with an open pre-period |
+| **Mode shift** | **upper bound** 77,600–97,000 veh/day | Subway +116,390 riders/day (+6.7%) ÷ occupancy 1.2–1.5 |
+| **Suppression** | sign only, not a point estimate | Residual plug |
+
+The mode-shift bound is worth reading carefully, because it shows why it has to
+be a bound. Manhattan subway ridership rose by 116,000 weekday riders, which
+would mechanically "displace" up to 97,000 vehicle trips — but measured vehicle
+volumes at the two tunnels fell by only about 2,500/day combined. The bound
+exceeds the measured decline by more than an order of magnitude, because most of
+the ridership growth is post-pandemic recovery that never had anything to do
+with cars. Anyone reporting a point estimate for mode shift from this data is
+reporting the recovery trend.
+
 ---
 
 ## What this adds up to
