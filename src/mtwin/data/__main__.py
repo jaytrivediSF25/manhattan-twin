@@ -9,6 +9,7 @@ SOURCES = {
     "bt": "bt_crossings",
     "dot": "dot_speeds",
     "subway": "subway",
+    "weather": "weather",
 }
 
 if __name__ == "__main__":

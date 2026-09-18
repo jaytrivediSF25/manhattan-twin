@@ -35,6 +35,7 @@ log = logging.getLogger(__name__)
 
 CDN = "https://d37ci6vzurychx.cloudfront.net/trip-data"
 SUBDIR_YELLOW = "tlc_yellow_cells"
+SUBDIR_CITY = "tlc_yellow_cells_city"
 LOOKUP = RAW / "taxi_zone_lookup.csv"
 
 # Scratch space for raw monthly parquet. FHV files are ~500 MB and are deleted
@@ -77,9 +78,21 @@ def _download(url: str, dest: Path) -> bool:
     return True
 
 
-def _aggregate_sql(path: Path, pickup: str, dropoff: str, distance_col: str) -> str:
-    """Reduce a month of trips to the locked (PU, DO, date, hour) cell schema."""
-    zones = ",".join(str(z) for z in MANHATTAN_ZONES)
+def _aggregate_sql(path: Path, pickup: str, dropoff: str, distance_col: str,
+                   zones_filter: list[int] | None = None) -> str:
+    """Reduce a month of trips to the locked (PU, DO, date, hour) cell schema.
+
+    `zones_filter=None` keeps every NYC zone, which is what the exposure design
+    needs: outer-borough OD pairs are the never-taker control, and restricting
+    to Manhattan would discard them.
+    """
+    if zones_filter:
+        zone_clause = (
+            f'AND "PULocationID" IN ({",".join(str(z) for z in zones_filter)})\n'
+            f'          AND "DOLocationID" IN ({",".join(str(z) for z in zones_filter)})'
+        )
+    else:
+        zone_clause = ""
     return f"""
     WITH trips AS (
         SELECT
@@ -91,9 +104,8 @@ def _aggregate_sql(path: Path, pickup: str, dropoff: str, distance_col: str) -> 
             CAST({distance_col} AS DOUBLE)              AS miles,
             date_diff('second', {pickup}, {dropoff})    AS seconds
         FROM read_parquet('{path}')
-        WHERE "PULocationID" IN ({zones})
-          AND "DOLocationID" IN ({zones})
-          AND "PULocationID" <> "DOLocationID"
+        WHERE "PULocationID" <> "DOLocationID"
+          {zone_clause}
           AND {dropoff} > {pickup}
     )
     SELECT
@@ -125,9 +137,10 @@ def _hygiene_filter(path: Path) -> str:
 
 
 def pull_yellow(start: date = reg.DATA_START, end: date = reg.DATA_END,
-                keep_raw: bool = True) -> list[Path]:
+                keep_raw: bool = True, zones_filter: list[int] | None = None,
+                subdir: str = SUBDIR_YELLOW) -> list[Path]:
     """Download, aggregate, and cache yellow-taxi cells month by month."""
-    out_dir = RAW / SUBDIR_YELLOW
+    out_dir = RAW / subdir
     out_dir.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
     con = duckdb.connect()
@@ -145,11 +158,12 @@ def pull_yellow(start: date = reg.DATA_START, end: date = reg.DATA_END,
 
         con.execute(_hygiene_filter(raw))
         sql = _aggregate_sql(
-            raw, "tpep_pickup_datetime", "tpep_dropoff_datetime", "trip_distance"
+            raw, "tpep_pickup_datetime", "tpep_dropoff_datetime", "trip_distance",
+            zones_filter=zones_filter,
         ).replace(f"read_parquet('{raw}')", "clean")
         df = con.execute(sql).pl()
         df.write_parquet(out)
-        log.info("tlc yellow %s: %d cells -> %s", f"{win_start:%Y-%m}", df.height, out.name)
+        log.info("tlc yellow %s: %d cells -> %s/%s", f"{win_start:%Y-%m}", df.height, subdir, out.name)
 
         if not keep_raw:
             raw.unlink(missing_ok=True)
@@ -157,8 +171,8 @@ def pull_yellow(start: date = reg.DATA_START, end: date = reg.DATA_END,
     return written
 
 
-def load_yellow() -> pl.DataFrame:
-    files = sorted((RAW / SUBDIR_YELLOW).glob("*.parquet"))
+def load_yellow(subdir: str = SUBDIR_YELLOW) -> pl.DataFrame:
+    files = sorted((RAW / subdir).glob("*.parquet"))
     frames = [pl.read_parquet(f) for f in files]
     frames = [f for f in frames if not f.is_empty()]
     return pl.concat(frames, how="diagonal_relaxed") if frames else pl.DataFrame()

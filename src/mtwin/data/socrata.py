@@ -78,23 +78,30 @@ def fetch(
     *,
     select: str | None = None,
     where: str | None = None,
+    group: str | None = None,
+    order: str | None = None,
     page_size: int = PAGE_SIZE,
     max_rows: int | None = None,
 ) -> pl.DataFrame:
     """Page through a Socrata query and return all rows as a DataFrame.
 
-    Ordering by `:id` makes offset paging stable; without it Socrata gives no
-    ordering guarantee and pages can overlap.
+    Offset paging needs a stable sort or pages can overlap. `:id` is the natural
+    key, but Socrata rejects it alongside an aggregate select ("column ':id' is
+    not in group by"), so grouped queries must order by their group columns
+    instead -- pass `order` explicitly in that case.
     """
     rows: list[dict] = []
     offset = 0
     with _client() as client:
         while True:
-            params = {"$limit": page_size, "$offset": offset, "$order": ":id"}
+            params = {"$limit": page_size, "$offset": offset}
+            params["$order"] = order if order is not None else ":id"
             if select:
                 params["$select"] = select
             if where:
                 params["$where"] = where
+            if group:
+                params["$group"] = group
             page = _get(client, ds.url, params)
             rows.extend(page)
             if len(page) < page_size:
@@ -153,6 +160,8 @@ def cached_monthly_pull(
     select: str | None = None,
     extra_where: str | None = None,
     date_field: str | None = None,
+    group: str | None = None,
+    order: str | None = None,
     transform=None,
 ) -> list[Path]:
     """Fetch month by month to Parquet, skipping months already on disk.
@@ -178,7 +187,7 @@ def cached_monthly_pull(
         )
         if extra_where:
             clause = f"({clause}) AND ({extra_where})"
-        df = fetch(ds, select=select, where=clause)
+        df = fetch(ds, select=select, where=clause, group=group, order=order)
         if transform is not None and not df.is_empty():
             df = transform(df)
         # Write even when empty so a genuinely empty month is not refetched forever.

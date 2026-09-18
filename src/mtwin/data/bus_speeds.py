@@ -55,27 +55,38 @@ def _typed(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def pull(start: date = reg.DATA_START, end: date = reg.DATA_END, borough: str = "Manhattan") -> None:
-    """Fetch both sides of the 2024/2025 dataset seam into one cache directory."""
+    """Fetch both sides of the 2024/2025 dataset seam into one cache directory.
+
+    Cached per borough. Outer-borough segments are the never-taker control for
+    the exposure design: they are far enough from the cordon that diverted
+    traffic does not reach them, unlike Manhattan above 60th St.
+    """
+    subdir = f"{SUBDIR}/{borough}"
     where = f"borough='{borough}'"
     # 58t6-89vi ends 2024-12-01; kufs-yh3x picks up 2025-01-01.
     seam = date(2025, 1, 1)
     if start < seam:
         cached_monthly_pull(
             reg.BUS_SEG_2324, start, min(end, seam),
-            subdir=SUBDIR, select=SELECT, extra_where=where, transform=_typed,
+            subdir=subdir, select=SELECT, extra_where=where, transform=_typed,
         )
     if end > seam:
         cached_monthly_pull(
             reg.BUS_SEG_2025, max(start, seam), end,
-            subdir=SUBDIR, select=SELECT, extra_where=where, transform=_typed,
+            subdir=subdir, select=SELECT, extra_where=where, transform=_typed,
         )
 
 
-def load() -> pl.DataFrame:
+CONTROL_BOROUGHS = ("Brooklyn", "Queens", "Bronx")
+
+
+def load(boroughs: tuple[str, ...] = ("Manhattan",)) -> pl.DataFrame:
     """Load the stitched segment-speed panel, with a stable segment key."""
-    df = load_months(SUBDIR)
-    if df.is_empty():
-        return df
+    frames = [load_months(f"{SUBDIR}/{b}") for b in boroughs]
+    frames = [f for f in frames if not f.is_empty()]
+    if not frames:
+        return pl.DataFrame()
+    df = pl.concat(frames, how="diagonal_relaxed")
     return df.with_columns(
         (pl.col("timepoint_stop_id").cast(pl.Utf8) + "->" + pl.col("next_timepoint_stop_id").cast(pl.Utf8))
         .alias("segment_id")
