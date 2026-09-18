@@ -24,6 +24,7 @@ pre-period 95th percentile before curves are compared.
 
 from __future__ import annotations
 
+import itertools
 from dataclasses import dataclass
 
 import numpy as np
@@ -118,7 +119,7 @@ def build_curves(
         scale = float(sub["scale"][0]) if sub.height else float("nan")
 
         v_pre, v_post, n_pre, n_post = [], [], [], []
-        for lo, hi in zip(edges[:-1], edges[1:]):
+        for lo, hi in itertools.pairwise(edges):
             p = pre.filter((pl.col("x") >= lo) & (pl.col("x") < hi))["speed_mph"]
             q = post.filter((pl.col("x") >= lo) & (pl.col("x") < hi))["speed_mph"]
             v_pre.append(float(p.median()) if p.len() >= min_obs else np.nan)
@@ -144,13 +145,13 @@ def invariance_summary(curves: list[MFDCurve]) -> pl.DataFrame:
         shift = c.shift[ok]
         rel = shift / c.v_pre[ok]
         rows.append(
-            dict(
-                reservoir=c.reservoir,
-                bins_compared=int(ok.sum()),
-                mean_shift_mph=float(np.average(shift, weights=w)),
-                mean_shift_pct=float(np.average(rel, weights=w)),
-                max_abs_shift_mph=float(np.max(np.abs(shift))),
-            )
+            {
+                "reservoir": c.reservoir,
+                "bins_compared": int(ok.sum()),
+                "mean_shift_mph": float(np.average(shift, weights=w)),
+                "mean_shift_pct": float(np.average(rel, weights=w)),
+                "max_abs_shift_mph": float(np.max(np.abs(shift))),
+            }
         )
     return pl.DataFrame(rows)
 

@@ -23,18 +23,7 @@ SUBDIR = "bus_segment_speeds"
 
 # Keep only what the panel needs; the georeference blobs duplicate the lat/lon
 # columns and roughly double row size on disk.
-SELECT = ",".join(
-    [
-        "timestamp", "day_of_week", "hour_of_day", "route_id", "direction",
-        "borough", "route_type", "stop_order",
-        "timepoint_stop_id", "timepoint_stop_name",
-        "timepoint_stop_latitude", "timepoint_stop_longitude",
-        "next_timepoint_stop_id", "next_timepoint_stop_name",
-        "next_timepoint_stop_latitude", "next_timepoint_stop_longitude",
-        "road_distance", "average_travel_time", "average_road_speed",
-        "bus_trip_count",
-    ]
-)
+SELECT = "timestamp,day_of_week,hour_of_day,route_id,direction,borough,route_type,stop_order,timepoint_stop_id,timepoint_stop_name,timepoint_stop_latitude,timepoint_stop_longitude,next_timepoint_stop_id,next_timepoint_stop_name,next_timepoint_stop_latitude,next_timepoint_stop_longitude,road_distance,average_travel_time,average_road_speed,bus_trip_count"
 
 NUMERIC = [
     "hour_of_day", "stop_order", "road_distance", "average_travel_time",

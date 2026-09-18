@@ -56,11 +56,11 @@ def build_tensors(panel: pl.DataFrame, k_jam: float = 120.0, device=None):
     n_jam = np.array([caps.get(r, 2e4) for r in res_names], dtype=np.float32)
 
     t = lambda a: torch.tensor(a, device=device)
-    return dict(
-        feats=t(feats), y_speed=t(y_speed), y_trips=t(y_trips), mask=t(mask),
-        n_jam=t(n_jam), res_onehot=torch.eye(R, device=device),
-        days=days, res_names=res_names,
-    )
+    return {
+        "feats": t(feats), "y_speed": t(y_speed), "y_trips": t(y_trips), "mask": t(mask),
+        "n_jam": t(n_jam), "res_onehot": torch.eye(R, device=device),
+        "days": days, "res_names": res_names,
+    }
 
 
 def _slice(T: dict, lo: date, hi: date) -> dict:

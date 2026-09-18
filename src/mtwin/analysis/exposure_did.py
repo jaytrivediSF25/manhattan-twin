@@ -136,7 +136,7 @@ def fit(
     period = _codes(d[period_col])
 
     w = d[weight_col].to_numpy().astype(float) if weight_col else None
-    beta, se, resid, r2 = _wls_fe(y, X, unit, period, w)
+    beta, se, _resid, r2 = _wls_fe(y, X, unit, period, w)
     return DiDResult(list(treat_cols), beta, se, len(y), len(np.unique(unit)), r2)
 
 

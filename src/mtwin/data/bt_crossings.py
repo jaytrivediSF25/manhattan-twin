@@ -25,13 +25,7 @@ log = logging.getLogger(__name__)
 
 SUBDIR = "bt_crossings"
 
-SELECT = ",".join(
-    [
-        "transit_timestamp", "date", "hour", "facility_id", "facility",
-        "direction", "payment_method", "vehicle_class",
-        "vehicle_class_description", "vehicle_class_category", "traffic_count",
-    ]
-)
+SELECT = "transit_timestamp,date,hour,facility_id,facility,direction,payment_method,vehicle_class,vehicle_class_description,vehicle_class_category,traffic_count"
 
 # Facilities that are also CRZ entry points, i.e. the usable pre-period series.
 CRZ_LINKED = ["Hugh L. Carey Tunnel", "Queens Midtown Tunnel"]

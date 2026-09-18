@@ -23,14 +23,7 @@ log = logging.getLogger(__name__)
 
 SUBDIR = "crz_entries"
 
-SELECT = ",".join(
-    [
-        "toll_date", "toll_hour", "toll_10_minute_block", "minute_of_hour",
-        "hour_of_day", "day_of_week_int", "day_of_week", "toll_week",
-        "time_period", "vehicle_class", "detection_group", "detection_region",
-        "crz_entries", "excluded_roadway_entries",
-    ]
-)
+SELECT = "toll_date,toll_hour,toll_10_minute_block,minute_of_hour,hour_of_day,day_of_week_int,day_of_week,toll_week,time_period,vehicle_class,detection_group,detection_region,crz_entries,excluded_roadway_entries"
 
 # The twelve tolling gantry groups, split by whether an MTA Bridges & Tunnels
 # pre-period series exists for them. Only two do; Holland and Lincoln are Port

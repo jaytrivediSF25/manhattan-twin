@@ -136,3 +136,41 @@ def fig_excluded_share(share: pl.DataFrame) -> Path:
     fig.suptitle("No growth in diversion onto untolled roads inside the cordon",
                  fontsize=11, x=0.01, ha="left")
     return _save(fig, "fig4_excluded_share.png")
+
+
+def main() -> None:
+    """Regenerate every figure from cached data."""
+    import glob
+    from datetime import date
+
+    from ..analysis import bunching_rd as brd
+    from ..analysis.diversion import excluded_share
+    from ..analysis.exposure_did import event_study
+    from ..models import mfd
+    from ..panel.build import bus_segment_panel, reservoir_panel
+
+    crz = pl.concat(
+        [pl.read_parquet(f) for f in sorted(glob.glob("data/raw/crz_entries/*.parquet"))],
+        how="diagonal_relaxed",
+    )
+    cars = brd.block_profile(crz, vehicle_class="1 - Cars, Pickups and Vans")
+    taxi = brd.block_profile(crz, vehicle_class="TLC Taxi/FHV")
+    print(fig_bunching(cars, taxi, brd.estimate(cars), brd.estimate(taxi)))
+
+    panel = reservoir_panel()
+    pre = pl.col("service_date") < date(2024, 6, 1)
+    post = pl.col("service_date") >= date(2025, 1, 5)
+    print(fig_mfd(mfd.build_curves(panel, pre, post, per_period_scale=True)))
+
+    bp = bus_segment_panel(
+        boroughs=("Manhattan", "Brooklyn", "Queens", "Bronx")
+    ).filter(pl.col("grp").is_in(["crz", "outer"]))
+    es = event_study(bp, weight_col="n_trips", omit=-1)
+    pre_coefs = [c for n, c in zip(es.names, es.coef) if int(n[4:-1]) < 0]
+    print(fig_event_study(es, null_band=float(np.std(pre_coefs))))
+
+    print(fig_excluded_share(excluded_share()))
+
+
+if __name__ == "__main__":
+    main()

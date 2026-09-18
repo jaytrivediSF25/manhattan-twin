@@ -33,9 +33,9 @@ def _panel(effect: float = 0.05, level_gap: float = 2.0, unbalanced: bool = Fals
             post = t >= 12
             y = a + 0.01 * t + (effect if (treated and post) else 0.0) + rng.normal(0, 0.02)
             rows.append(
-                dict(unit=f"u{u}", period=t, log_speed=y, n_trips=w,
-                     crz_post=float(treated and post), above60_post=0.0,
-                     is_crz=float(treated), rel_period=t - 12)
+                {"unit": f"u{u}", "period": t, "log_speed": y, "n_trips": w,
+                     "crz_post": float(treated and post), "above60_post": 0.0,
+                     "is_crz": float(treated), "rel_period": t - 12}
             )
     return pl.DataFrame(rows)
 
