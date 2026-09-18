@@ -1,0 +1,21 @@
+[project]
+name = "mtwin"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "duckdb>=1.5.5",
+    "httpx>=0.28.1",
+    "lightgbm>=4.7.0",
+    "matplotlib>=3.11.2",
+    "networkx>=3.6.1",
+    "numpy>=2.5.3",
+    "pandas>=3.0.6",
+    "polars>=1.44.2",
+    "pyarrow>=25.0.1",
+    "scikit-learn>=1.9.1",
+    "shapely>=2.1.2",
+    "statsmodels>=0.15.0",
+    "torch>=2.14.0",
+]
