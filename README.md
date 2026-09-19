@@ -11,7 +11,8 @@
   <img alt="Polars" src="https://img.shields.io/badge/Polars-1.44-CD792C?logo=polars&logoColor=white">
   <img alt="DuckDB" src="https://img.shields.io/badge/DuckDB-1.5-FFF000?logo=duckdb&logoColor=black">
   <img alt="tests" src="https://img.shields.io/badge/tests-6%20passing-1baf7a">
-  <img alt="data" src="https://img.shields.io/badge/data-43%20months%20×%207%20sources-2a78d6">
+  <img alt="data" src="https://img.shields.io/badge/data-43%20months%20×%208%20sources-2a78d6">
+  <img alt="license" src="https://img.shields.io/badge/license-MIT-555">
 </p>
 
 ---
@@ -23,17 +24,21 @@ make about traffic digital twins: that the gap between a physics model's
 prediction and reality measures *human behaviour*.
 
 This repository builds that twin, runs it across the shock, and checks the claim.
-**It does not hold up** — and the way it fails is the interesting part.
+**It does not hold up** — and it fails for a reason more interesting than the
+usual one. The residual is not merely contaminated by drift; it *never grows*.
+Congestion pricing changed when people drove without degrading a road-physics
+model at all, because the physics was never what the toll acted on.
 
 ## Results at a glance
 
 | | Finding | Verdict |
 |---|---|---|
-| 🎯 | Cars bunch **+28.6%** at the 21:00 toll step; flat-fee taxis **+3.8%** | **Clean causal result** |
+| 🎯 | Entries move with the price at **all three** toll thresholds — and reverse where the toll *rises* | **Clean causal result** |
+| 💵 | Semi-elasticity **−0.12 to −0.31**; response settles to a **~22% plateau** | Transferable, durable |
 | 📐 | The fundamental diagram is **invariant** across the policy | Physics holds |
-| 📉 | Speed effect **+1.5%** — but a pre-policy placebo gives **−1.2%** | Not separable |
-| 🛣️ | Untolled-road share flat at **11–12%**, no diversion growth | Two instruments agree |
-| ❌ | The twin **loses to its own ablation** at every parameter value | Framing fails |
+| ✅ | Imposing the physics **beats** leaving it free, 6/6 runs | Constraint earns its place |
+| ❌ | The twin's forecast error across the policy sits **below** its own placebo band | **Premise fails** |
+| 📉 | Speed effect **+1.9%** on running speed; synthetic control inconclusive | Not identified |
 
 ---
 
@@ -48,6 +53,23 @@ a dip before the threshold and a spike after.
 The right panel is the falsification. **Taxis and FHVs pay a flat per-trip fee
 with no time variation**, so they have no reason to retime — and they don't. A
 recording artefact at the hour boundary would have moved both panels equally.
+
+The stronger test uses the whole toll schedule. Two of the three thresholds are
+price **rises**, where drivers should go early and leave a hole *after* the
+step — the opposite pattern:
+
+![Three toll thresholds](outputs/figures/fig5_thresholds.png)
+
+| Threshold | Price | Jump | Semi-elasticity |
+|---|---|--:|--:|
+| 21:00, all days | falls $9 → $2.25 | **+24.2%** | −0.174 |
+| 05:00, weekdays | rises $2.25 → $9 | **−42.5%** (p=0.000) | −0.307 |
+| 09:00, weekends | rises $2.25 → $9 | −17.1% | −0.123 |
+
+All three carry the predicted sign. An artefact at an hour boundary has no
+reason to track the *direction* of a price change. Quarterly re-estimation shows
+the response easing from 33% to a stable **~22% plateau** — habituation, but not
+surrender.
 
 | Vehicle class | Jump at 21:00 | Toll faced |
 |---|--:|---|
@@ -101,26 +123,35 @@ speeds on those corridors show no break. Two independent instruments agree:
 diversion is not where the response went. The visible margin is *when* people
 drive, not which road they take.
 
-## 5. The twin loses to its own ablation
+## 5. The physics constraint earns its place — but the residual says nothing
 
-The mandatory ablation — identical architecture, fundamental-diagram closure
-replaced by an unconstrained network — across a sweep of the externally pinned
-jam-accumulation parameter:
+An earlier version of this analysis reported that the twin lost to its own
+ablation. **That comparison was unfair and the conclusion was wrong.** It pitted
+a conservation rollout driven by seven smooth covariates against an
+unconstrained regression with no rollout at all — two architectures, not the
+physics constraint.
 
-| `k_jam` | 30 | 60 | 90 | 120 | 150 |
-|---|--:|--:|--:|--:|--:|
-| Physics twin, post-RMSE | 0.263 | 0.273 | 0.279 | 0.280 | 0.283 |
-| **Ablation, post-RMSE** | **0.138** | **0.138** | **0.138** | **0.138** | **0.138** |
-| Behaviour shift, policy | 1.78 | 2.71 | 3.71 | 3.67 | 4.07 |
-| Behaviour shift, *placebo* | 1.75 | 2.98 | 3.67 | 3.76 | 4.04 |
+Holding the architecture fixed and varying only the constraint:
 
-The unconstrained model fits **twice as well at every pin**, and the
-frozen-physics behavioural shift tracks its own placebo throughout — the two
-series move together as `k_jam` changes, which says the quantity is tracking the
-parameter rather than the policy.
+| Arm | Rollout | Closure | post-RMSE | Params |
+|---|:--:|---|--:|--:|
+| **monotone** | yes | fundamental diagram, decreasing by construction | **0.2816** | 1,939 |
+| free | yes | unconstrained function of accumulation | 0.2898 | 2,900 |
+| none | no | direct regression from covariates | 0.1364 | 4,470 |
 
-**Reported rather than buried.** The residual-as-behaviour framing does not
-survive its own placebo tests.
+**The fundamental diagram wins 6 of 6 runs** (3 seeds × 2 pins), by five to ten
+times the seed noise, with a third fewer parameters. What is expensive is the
+*rollout*, not the constraint.
+
+The premise still fails, but elsewhere. A calendar-matched rolling-origin
+backtest puts the twin's placebo forecast error at **[0.297, 0.375]** — and its
+error across the policy period at **0.263**, *below* the band. The twin predicts
+the congestion-pricing period slightly better than ordinary ones.
+
+There is no anomalous gap, so there is nothing for "the gap is behaviour" to
+measure. Drivers retimed; the fundamental diagram did not care. **A twin that
+models the road rather than the driver stays accurate through exactly the shock
+it was built to detect.**
 
 ---
 
@@ -229,6 +260,11 @@ and a biased coefficient does not. All four are pinned by tests in `tests/`:
   response, exiting before the regressors were absorbed.
 - **Silent nulls.** GHCN pads its fields, and `"     8"` casts to null, not 8 —
   every weather reading vanished without an error.
+- **An unfair ablation.** Comparing a constrained rollout against an
+  unconstrained *regression* tests the architecture, not the constraint — and
+  reversed the headline conclusion until it was fixed.
+- **A synthetic control that fit perfectly.** 326 donors against 24 pre-periods
+  reproduced the training window exactly (RMSE 0.0000) and predicted nothing.
 
 Platform specifics: Python 3.12 (torch wheels do not cover 3.14 yet), MPS used
 when available. Socrata will time out on unfiltered aggregates, needs a stable

@@ -21,6 +21,7 @@ so it deliberately carries more moments than the headline analysis needs
 from __future__ import annotations
 
 import logging
+import time
 from datetime import date
 from pathlib import Path
 
@@ -65,18 +66,35 @@ def _month_url(service: str, when: date) -> str:
     return f"{CDN}/{service}_tripdata_{when:%Y-%m}.parquet"
 
 
-def _download(url: str, dest: Path) -> bool:
-    """Stream a monthly parquet to disk. Returns False if not yet published."""
+def _download(url: str, dest: Path, max_retries: int = 4) -> bool:
+    """Stream a monthly parquet to disk. Returns False if not yet published.
+
+    FHV files are ~500 MB, long enough that a transient read timeout part-way
+    through is routine. Without a retry one dropped connection aborts the whole
+    multi-month pull, so failures back off and resume, and a partial file is
+    deleted rather than left to look like a completed download.
+    """
     dest.parent.mkdir(parents=True, exist_ok=True)
-    with httpx.stream("GET", url, timeout=300.0, follow_redirects=True) as r:
-        if r.status_code == 403 or r.status_code == 404:
-            log.info("tlc: %s not published yet", url.rsplit("/", 1)[-1])
-            return False
-        r.raise_for_status()
-        with dest.open("wb") as fh:
-            for chunk in r.iter_bytes(1 << 20):
-                fh.write(chunk)
-    return True
+    delay = 5.0
+    for attempt in range(max_retries):
+        try:
+            with httpx.stream("GET", url, timeout=600.0, follow_redirects=True) as r:
+                if r.status_code in (403, 404):
+                    log.info("tlc: %s not published yet", url.rsplit("/", 1)[-1])
+                    return False
+                r.raise_for_status()
+                with dest.open("wb") as fh:
+                    for chunk in r.iter_bytes(1 << 20):
+                        fh.write(chunk)
+            return True
+        except (httpx.RequestError, httpx.HTTPStatusError) as exc:
+            dest.unlink(missing_ok=True)
+            log.warning("tlc download %s (attempt %d/%d): %s",
+                        url.rsplit("/", 1)[-1], attempt + 1, max_retries, exc)
+            time.sleep(delay)
+            delay *= 2
+    log.error("tlc: giving up on %s", url.rsplit("/", 1)[-1])
+    return False
 
 
 def _aggregate_sql(path: Path, pickup: str, dropoff: str, distance_col: str,

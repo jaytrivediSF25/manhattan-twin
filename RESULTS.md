@@ -51,6 +51,26 @@ counts gives a jump of **+28.6%** for cars, stable across bandwidths of 60–120
 minutes. The raw series shows the textbook pattern: a dip immediately before the
 threshold as drivers wait, then a spike at 21:00.
 
+**The toll schedule contains three thresholds, and only one is a price cut.** At
+05:00 on weekdays and 09:00 at weekends the toll *rises* from $2.25 to $9, so the
+response must run the other way — drivers go early, pulling entries forward and
+leaving a hole after the threshold. That sign prediction is a test rather than a
+description, because a fitting artefact at an hour boundary has no reason to
+track the direction of the price change:
+
+| Threshold | Price | Jump | Semi-elasticity | Sign as predicted |
+|---|---|--:|--:|:--:|
+| 21:00, all days | falls $9 → $2.25 | **+24.2%** | −0.174 | ✅ |
+| 05:00, weekdays | rises $2.25 → $9 | **−42.5%** (p = 0.000) | −0.307 | ✅ |
+| 09:00, weekends | rises $2.25 → $9 | −17.1% | −0.123 | ✅ |
+
+All three carry the predicted sign, and the implied semi-elasticities cluster
+between −0.12 and −0.31 — a transferable price response, not just a jump size.
+
+**The response is durable, with partial habituation.** Re-estimating the 21:00
+jump quarter by quarter: 33.2% in 2025Q1, easing to a stable plateau near 22%
+through 2026. Drivers adjust to the toll but do not stop responding to it.
+
 The falsification test is what makes it causal:
 
 | Vehicle class | Jump at 21:00 | Toll structure faced |
@@ -62,7 +82,7 @@ Taxis have no incentive to retime and do not. A recording artefact at the hour
 boundary would have moved both equally. This result uses only post-period data
 and needs no control group, no model, and no parallel-trends assumption.
 
-*Figure: `outputs/figures/fig1_bunching.png`*
+*Figures: `outputs/figures/fig1_bunching.png`, `outputs/figures/fig5_thresholds.png`*
 
 ## Result 2 — The physics block does not break
 
@@ -136,37 +156,66 @@ road they take.
 
 *Figure: `outputs/figures/fig4_excluded_share.png`*
 
-## Result 5 — The physics constraint does not earn its place
+## Result 5 — The physics constraint earns its place; the architecture does not
 
-The mandatory ablation, identical architecture with the fundamental-diagram
-closure replaced by an unconstrained network, across a sweep of the externally
-pinned jam-accumulation parameter:
+An earlier version of this analysis reported that the twin lost to its own
+ablation. **That comparison was not a fair test and the conclusion was wrong.**
+It set a conservation rollout driven by seven smooth covariates against an
+unconstrained regression with no rollout at all — two different architectures,
+only one of which has to route every hour through accumulation dynamics. Losing
+that comparison says nothing about the physics.
 
-| k_jam | Physics twin, post RMSE | Ablation, post RMSE | Frozen-physics |
-|---|---|---|---|
-| 30 | 0.263 | **0.138** | 0.212 |
-| 60 | 0.273 | **0.138** | 0.235 |
-| 90 | 0.279 | **0.138** | 0.235 |
-| 120 | 0.280 | **0.138** | 0.235 |
-| 150 | 0.283 | **0.138** | 0.238 |
+The fair test holds the architecture fixed and varies only the constraint:
 
-**The unconstrained model fits about twice as well, at every value of k_jam.**
-Reported rather than buried: the physics constraint costs accuracy here and does
-not improve extrapolation across the policy shock.
+| Arm | Rollout | Closure | post-RMSE (k=60) | post-RMSE (k=120) | Params |
+|---|:--:|---|--:|--:|--:|
+| **monotone** | yes | fundamental diagram, decreasing by construction | **0.2744** | **0.2816** | 1,939 |
+| free | yes | unconstrained function of accumulation | 0.2898 | 0.2898 | 2,900 |
+| none | no | direct regression from covariates | 0.1364 | 0.1364 | 4,470 |
 
-The frozen-physics experiment — freeze the fundamental diagram at its pre-policy
-values, re-estimate only the behaviour block on post-policy data, and measure how
-far the behaviour parameters move — gives a relative shift that tracks its
-own placebo at every pin:
+**The monotone fundamental diagram beats the unconstrained closure in 6 of 6
+runs** (3 seeds × 2 pins), by 0.008–0.015 RMSE against a seed standard deviation
+of 0.0016 — a gap five to ten times the noise — while using a third fewer
+parameters. Imposing the physics helps.
 
-| k_jam | 30 | 60 | 90 | 120 | 150 |
-|---|---|---|---|---|---|
-| under the policy | 1.78 | 2.71 | 3.71 | 3.67 | 4.07 |
-| under a no-policy placebo | 1.75 | 2.98 | 3.67 | 3.76 | 4.04 |
+What is expensive is the *rollout*, not the constraint. A direct regression
+halves the error, because it can fit any hour-of-day pattern straight from the
+covariates while the rollout must generate the same pattern through latent
+accumulation driven by a handful of smooth inputs. That is a statement about
+model structure and information, not about whether traffic obeys a fundamental
+diagram.
 
-The behavioural parameter shift does not distinguish the policy from nothing
-happening — and the two series move together as k_jam changes, which says the
-quantity is tracking the pin rather than the policy.
+Two further details are worth recording. The free closure returns **0.2898 at
+every pin and seed**, to four decimals: with no constraint it ignores the
+physical scale entirely and converges to the same solution regardless of
+`k_jam`, which is a neat illustration of why the accumulation scale had to be
+pinned externally. And the frozen-physics behavioural shift still tracks its own
+placebo (3.68 under the policy against 3.76 under no policy at `k_jam` = 120),
+so that particular quantity remains uninformative.
+
+## Result 5b — The twin's error does not rise across the policy
+
+The claim under test is that a physics model's prediction error jumps when a
+policy changes behaviour, and that the jump measures the behaviour. A
+calendar-matched rolling-origin backtest — the same 9-month-train, 3-month-
+forecast protocol repeated at quarterly origins across the pre-policy span —
+gives the null band that claim needs:
+
+| | Forecast RMSE |
+|---|--:|
+| Placebo origins (n = 5) | 0.286, 0.314, 0.319, 0.373, 0.376 |
+| 10–90 percentile band | **[0.297, 0.375]** |
+| **Policy period** | **0.263** |
+
+The policy-period error falls **below** the placebo band. The twin predicts the
+congestion-pricing period slightly *better* than it predicts ordinary
+pre-policy periods at the same horizon and season.
+
+So there is no anomalous gap to interpret. The premise of the project — that
+the residual between a physics twin and reality isolates the behavioural
+response — fails not because the residual is contaminated, but because **the
+residual does not grow at all.** That is consistent with Result 2: the physics
+never broke, so the model never stopped working.
 
 ## Result 6 — Decomposition, with the bounds left visible
 
@@ -195,25 +244,39 @@ reporting the recovery trend.
 
 ## What this adds up to
 
-The assumption-light half works and the model-dependent half does not.
+The assumption-light results are strong, and the model-dependent ones fail in a
+more interesting way than first reported.
 
-1. **Drivers demonstrably respond to the price**, and the car/taxi contrast at the
-   toll threshold pins that down without any modelling.
-2. **The physics is invariant** — the fundamental diagram survives the shock
-   intact, which answers the project's question in its first form: the policy
-   content is entirely demand-side, not in how streets behave.
-3. **The twin adds nothing.** The physics constraint loses to its own ablation,
-   and the frozen-physics behavioural shift cannot separate policy from placebo.
-   The residual-as-behaviour framing does not survive contact with its own
-   placebo tests.
-4. **The speed effect is small (+1.8%) and confounded by pre-trends** that are as
-   large as the effect.
+1. **Drivers respond to the price, and the response is priced.** All three toll
+   thresholds move entries in the direction the price predicts, including the
+   two where the toll rises and the response reverses. Semi-elasticities cluster
+   at −0.12 to −0.31, and the response is durable with partial habituation.
+2. **The physics is invariant and the constraint is useful.** The fundamental
+   diagram survives the shock, and imposing it beats leaving it free in every
+   run. The earlier claim to the contrary came from an unfair ablation.
+3. **But the twin's residual carries no signal about behaviour.** Forecast error
+   during the policy period sits *below* its own placebo band. There is no
+   anomalous gap, so there is nothing for "the gap is behaviour" to measure.
+4. **The speed effect is small and not identified.** +1.9% on running speed, with
+   a placebo that is insignificant only after dwell is removed, and a synthetic
+   control that is inconclusive with degenerate weights.
 
-The honest paper is therefore the measurement one: *what it takes to detect a
-known policy effect, and why the obvious designs fail.* The failure modes are
-specific and reusable — a control group contaminated by the treatment's own
-diversion, a probe fleet that is itself treated, an accumulation proxy that moves
-with market share, and a placebo year that moves as much as the policy year.
+The premise fails for a reason worth stating precisely. It is not that the
+residual is contaminated by drift and misspecification — the usual objection.
+It is that **a policy can change behaviour substantially without degrading a
+physics model at all**, because the physics was never what the policy acted on.
+Drivers retimed and the fundamental diagram did not care. A twin that models
+the road rather than the driver stays accurate through exactly the shock it was
+supposed to detect.
+
+The defensible paper is therefore the measurement one: the toll-threshold
+response is a clean, transferable estimate, and the twin's failure is a
+structural argument about what digital twins can and cannot be asked to do. The
+specific failure modes are reusable — a control group contaminated by the
+treatment's own diversion, a probe fleet that is itself treated, an accumulation
+proxy that moves with market share, an attenuating measurement that hides the
+signal, and an ablation that compares architectures when it meant to compare
+constraints.
 
 ## Known limitations
 
@@ -231,3 +294,16 @@ with market share, and a placebo year that moves as much as the policy year.
   reservoir area and swept over k_jam ∈ [30, 150].
 - **Bus lane and busway rollout** over 2023–2025 contaminates the bus observable
   in an unknown direction and is not controlled for.
+- **No cross-city donor pool.** The right control group is another city, and it
+  cannot be built from open data for 2023–2026 (see Result 3). Every donor used
+  here shares New York–wide shocks with the treated units.
+- **No historical closure control.** The NYC street-closure dataset is a live
+  permit snapshot — 492 active permits covering 78 days — not an archive, so
+  construction cannot be controlled across the study window.
+- **The rolling-origin band rests on five origins.** A 24-month clean pre-period
+  supports a 9-month-train, 3-month-forecast protocol at quarterly spacing and
+  little more; the longer 12/8 protocol yields only two origins and no usable
+  band.
+- **Dwell overhead is estimated, not observed.** The 2.57-minute figure comes
+  from a pooled travel-time-on-distance fit, so the de-attenuated effect should
+  be read as an order-of-magnitude correction rather than a precise one.

@@ -174,3 +174,35 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+def fig_thresholds(profiles: dict, results: dict) -> Path:
+    """All three toll thresholds, showing the response flip with price direction."""
+    fig, axes = plt.subplots(1, 3, figsize=(11, 3.6))
+    for ax, (name, prof) in zip(axes, profiles.items()):
+        r = results[name]
+        thr = r.threshold_min / 60.0
+        m = prof["minute_of_day"].to_numpy() / 60.0
+        v = prof["entries"].to_numpy()
+        w = (m >= thr - 3) & (m <= thr + 3)
+        rising = "rise" in name
+        colour = ORANGE if rising else BLUE
+        ax.plot(m[w], v[w], color=colour, lw=2, marker="o", ms=3)
+        ax.axvline(thr, color=INK, lw=1.2, ls="--")
+        arrow = "toll rises\n$2.25 → $9" if rising else "toll falls\n$9 → $2.25"
+        ax.set_title(f"{name}\njump {r.jump_pct:+.1%}", fontsize=9, loc="left", color=INK)
+        # Park the note in the emptier half of the panel: entries fall away from
+        # the threshold at a price cut and rise into it at a price rise, so the
+        # free corner is on opposite sides in the two cases.
+        lo, hi = v[w].min(), v[w].max()
+        y_text = lo + 0.08 * (hi - lo) if not rising else hi * 0.98
+        x_text = thr + 0.4 if not rising else thr - 2.9
+        ax.annotate(arrow.replace("$", r"\$"), xy=(thr, hi),
+                    xytext=(x_text, y_text), color=MUTED, fontsize=8)
+        ax.set_xlabel("hour of day")
+    axes[0].set_ylabel("entries per 10-min block")
+    fig.suptitle(
+        "The response flips sign with the direction of the price change",
+        fontsize=11, x=0.01, ha="left",
+    )
+    return _save(fig, "fig5_thresholds.png")
