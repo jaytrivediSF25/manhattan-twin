@@ -88,16 +88,10 @@ def summarise(pre_year: int = 2024, post_year: int = 2025) -> list[Component]:
     Every term is measured from data rather than passed in, so the numbers in
     the write-up can be regenerated rather than transcribed.
     """
-    import glob
-
-    import polars as pl
-
+    from ..data import crz_entries
     from . import bunching_rd as brd
 
-    crz = pl.concat(
-        [pl.read_parquet(f) for f in sorted(glob.glob("data/raw/crz_entries/*.parquet"))],
-        how="diagonal_relaxed",
-    )
+    crz = crz_entries.load()
 
     # Retiming: the bunching jump, spread over the six 10-minute blocks of the
     # hour following the toll step.

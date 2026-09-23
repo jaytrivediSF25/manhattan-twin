@@ -17,6 +17,7 @@ from datetime import date
 import polars as pl
 
 from . import registry as reg
+from . import sample
 from .socrata import cached_monthly_pull, load_months
 
 log = logging.getLogger(__name__)
@@ -52,4 +53,10 @@ def pull(start: date = reg.POLICY_START, end: date = reg.DATA_END) -> None:
 
 
 def load() -> pl.DataFrame:
+    # The sample table is this source summed over detection_group /
+    # detection_region / time_period. Both consumers -- the bunching RD and
+    # the diversion share -- sum those dimensions away before using them, so
+    # the substitution is lossless for them and twelve times smaller.
+    if sample.enabled():
+        return sample.load("crz_blocks")
     return load_months(SUBDIR)

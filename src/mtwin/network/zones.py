@@ -18,6 +18,8 @@ from pathlib import Path
 import duckdb
 import polars as pl
 
+from ..data import sample
+
 SHAPEFILE = Path("/tmp/tz/taxi_zones/taxi_zones.shp")
 
 # 60th Street, the charge boundary.
@@ -31,6 +33,11 @@ NOT_CORDON = {202}  # Roosevelt Island
 
 
 def zone_centroids(shapefile: Path = SHAPEFILE) -> pl.DataFrame:
+    # The shapefile is a manual download living outside the repo, so on a
+    # fresh clone there is nothing to reproject. The sample table carries the
+    # centroids and flags this function derives, which is all any caller uses.
+    if sample.enabled():
+        return sample.load("zone_centroids").drop("km2")
     con = duckdb.connect()
     con.execute("INSTALL spatial; LOAD spatial;")
     df = con.execute(

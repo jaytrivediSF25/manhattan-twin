@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import polars as pl
 
-from ..data import bus_speeds, tlc, weather
+from ..data import bus_speeds, sample, tlc, weather
 from ..data.registry import POLICY_START
 from ..network.zones import zone_centroids
 
@@ -101,6 +101,14 @@ def bus_segment_panel(
     does not respond to congestion, so leaving it in attenuates any traffic
     effect by roughly 1 / (1 - dwell share); see `panel.dwell`.
     """
+    if sample.enabled():
+        if running_only:
+            # Dwell is estimated from the per-trip distribution of travel times,
+            # which the monthly aggregate has already averaged away. Refuse
+            # rather than return a number that looks like a dwell correction.
+            raise NotImplementedError("running_only needs raw segment speeds; unset MTWIN_USE_SAMPLE")
+        base = sample.load("bus_segment_panel")
+        return _finish_bus_panel(base.filter(pl.col("borough").is_in(boroughs)).drop("borough"))
     df = bus_speeds.load(boroughs=boroughs)
     if df.is_empty():
         return df
@@ -123,23 +131,32 @@ def bus_segment_panel(
         pl.col("hour_of_day").is_between(HOUR_LO, HOUR_HI)
         & ~pl.col("day_of_week").is_in(["Saturday", "Sunday"])
     )
-    panel = (
-        d.group_by(["segment_id", "grp", "route_id", _period_index(pl.col("timestamp")).alias("period")])
-        .agg(
-            [
-                (pl.col("road_distance") * pl.col("bus_trip_count")).sum().alias("veh_miles"),
-                (pl.col("average_travel_time") * pl.col("bus_trip_count")).sum().alias("veh_minutes"),
-                pl.col("bus_trip_count").sum().alias("n_trips"),
-            ]
-        )
-        .with_columns(
+    agg = d.group_by(
+        ["segment_id", "grp", "route_id", _period_index(pl.col("timestamp")).alias("period")]
+    ).agg(
+        [
+            (pl.col("road_distance") * pl.col("bus_trip_count")).sum().alias("veh_miles"),
+            (pl.col("average_travel_time") * pl.col("bus_trip_count")).sum().alias("veh_minutes"),
+            pl.col("bus_trip_count").sum().alias("n_trips"),
+        ]
+    )
+    return _finish_bus_panel(agg)
+
+
+def _finish_bus_panel(agg: pl.DataFrame) -> pl.DataFrame:
+    """Segment-month aggregate -> analysis panel.
+
+    Shared by the raw and sample paths so the two cannot drift in how segment
+    speed is defined -- distance-weighted, not a mean of per-trip speeds.
+    """
+    return _add_design_cols(
+        agg.with_columns(
             [
                 (pl.col("veh_miles") / (pl.col("veh_minutes") / 60)).alias("speed_mph"),
                 pl.col("segment_id").alias("unit"),
             ]
         )
     )
-    return _add_design_cols(panel)
 
 
 def _add_design_cols(panel: pl.DataFrame) -> pl.DataFrame:
@@ -177,6 +194,11 @@ def reservoir_panel(min_trips: int = 20) -> pl.DataFrame:
     without ever observing vehicle density.
     """
     from ..models.reservoir import zone_to_reservoir
+
+    if sample.enabled():
+        # Already reduced to reservoir x date x hour; `min_trips` was applied at
+        # export, so honour it only as a tightening filter.
+        return sample.load("reservoir_panel").filter(pl.col("trips") >= min_trips)
 
     cells = tlc.load_yellow(subdir=tlc.SUBDIR_CITY)
     z2r = zone_to_reservoir().select(pl.col("zone_id").alias("pu"), "reservoir")

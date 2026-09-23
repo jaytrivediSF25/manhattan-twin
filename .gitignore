@@ -1,7 +1,12 @@
 .venv/
 __pycache__/
 *.pyc
-/data/
+# The bulk raw pull (~4 GB) stays out, but data/sample/ is the committed set of
+# derived tables that makes the analyses runnable from a fresh clone. Git will
+# not descend into an excluded directory, so data/ is excluded per-entry rather
+# than wholesale -- `/data/` followed by `!/data/sample/` would not re-include.
+/data/*
+!/data/sample/
 /outputs/models/
 .DS_Store
 .ipynb_checkpoints/

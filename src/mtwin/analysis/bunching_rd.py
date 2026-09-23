@@ -183,6 +183,28 @@ def price_semi_elasticity(jump_pct: float, direction: int) -> float:
     return jump_pct / dlog_price if dlog_price else float("nan")
 
 
+def threshold_profiles(
+    df: pl.DataFrame,
+    *,
+    vehicle_class: str | None = "1 - Cars, Pickups and Vans",
+) -> dict[str, pl.DataFrame]:
+    """One block profile per threshold, on the days that threshold applies to.
+
+    The 05:00 and 09:00 steps exist only on weekdays and weekends respectively,
+    so each has to be estimated on its own day set. Shared with the figure code
+    so the panel drawn and the number reported come from the same profile.
+    """
+    out: dict[str, pl.DataFrame] = {}
+    for name, spec in THRESHOLDS.items():
+        wd = spec["weekdays"]
+        sub = df if wd is None else df.filter(
+            ~pl.col("day_of_week").is_in(["Saturday", "Sunday"]) if wd
+            else pl.col("day_of_week").is_in(["Saturday", "Sunday"])
+        )
+        out[name] = block_profile(sub, vehicle_class=vehicle_class, weekdays_only=False)
+    return out
+
+
 def all_thresholds(
     df: pl.DataFrame,
     *,
@@ -191,18 +213,10 @@ def all_thresholds(
 ) -> pl.DataFrame:
     """Estimate every toll threshold and report the implied elasticity."""
     rows = []
+    profiles = threshold_profiles(df, vehicle_class=vehicle_class)
     for name, spec in THRESHOLDS.items():
-        wd = spec["weekdays"]
-        if wd is None:
-            prof = block_profile(df, vehicle_class=vehicle_class, weekdays_only=False)
-        else:
-            sub = df.filter(
-                ~pl.col("day_of_week").is_in(["Saturday", "Sunday"]) if wd
-                else pl.col("day_of_week").is_in(["Saturday", "Sunday"])
-            )
-            prof = block_profile(sub, vehicle_class=vehicle_class, weekdays_only=False)
         try:
-            r = estimate(prof, threshold=spec["minute"], bandwidth=bandwidth)
+            r = estimate(profiles[name], threshold=spec["minute"], bandwidth=bandwidth)
         except ValueError:
             continue
         rows.append(

@@ -1,10 +1,13 @@
-.PHONY: help sync data figures experiments test lint clean
+.PHONY: help sync quickstart data figures experiments test lint clean
 
 help:
 	@grep -E '^[a-z-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "};{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}'
 
 sync: ## Install dependencies
 	uv sync
+
+quickstart: ## Headline numbers + figures from data/sample/, no download (~40s)
+	uv run python -m src.mtwin.quickstart
 
 data: ## Pull every source (cached per month; re-runs are no-ops)
 	uv run python -m src.mtwin.data bus
@@ -18,7 +21,9 @@ data: ## Pull every source (cached per month; re-runs are no-ops)
 experiments: ## Twin, ablation, frozen-physics, k_jam sweep
 	uv run python -c "import json; from src.mtwin.models.experiments import run_experiments; print(json.dumps(run_experiments(), indent=2, default=str))"
 
-figures: ## Regenerate the four publication figures
+# Reads data/raw/ when it exists and data/sample/ otherwise; MTWIN_USE_SAMPLE=1
+# forces the sample tables even on a machine that has the full pull.
+figures: ## Regenerate the five publication figures
 	uv run python -m src.mtwin.figures.make_figures
 
 test: ## Run the regression tests

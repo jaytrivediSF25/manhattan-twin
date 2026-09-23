@@ -66,21 +66,28 @@ def reservoir_capacity(area_km2: dict[str, float] | None = None,
 
 def _reservoir_area_km2() -> dict[str, float]:
     """Approximate reservoir land area from taxi-zone geometry."""
-    import duckdb
+    from ..data import sample
 
-    from ..network.zones import SHAPEFILE
+    if sample.enabled():
+        # The shapefile is a manual download outside the repo; the sample table
+        # carries the per-zone polygon area it would be read for.
+        areas = sample.load("zone_centroids").select(["zone_id", "km2"])
+    else:
+        import duckdb
 
-    con = duckdb.connect()
-    con.execute("INSTALL spatial; LOAD spatial;")
-    # Shapefile is EPSG:2263 (feet); area in square feet converts to km^2.
-    areas = con.execute(
-        f"""
-        SELECT CAST(LocationID AS INTEGER) AS zone_id,
-               ST_Area(geom) / 1e6 * 0.09290304 AS km2
-        FROM ST_Read('{SHAPEFILE}')
-        """
-    ).pl()
-    con.close()
+        from ..network.zones import SHAPEFILE
+
+        con = duckdb.connect()
+        con.execute("INSTALL spatial; LOAD spatial;")
+        # Shapefile is EPSG:2263 (feet); area in square feet converts to km^2.
+        areas = con.execute(
+            f"""
+            SELECT CAST(LocationID AS INTEGER) AS zone_id,
+                   ST_Area(geom) / 1e6 * 0.09290304 AS km2
+            FROM ST_Read('{SHAPEFILE}')
+            """
+        ).pl()
+        con.close()
     z = zone_to_reservoir().join(areas, on="zone_id", how="left")
     agg = z.group_by("reservoir").agg(pl.col("km2").sum()).to_dicts()
     out = {r["reservoir"]: float(r["km2"]) for r in agg}

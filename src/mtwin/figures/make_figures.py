@@ -140,22 +140,27 @@ def fig_excluded_share(share: pl.DataFrame) -> Path:
 
 def main() -> None:
     """Regenerate every figure from cached data."""
-    import glob
     from datetime import date
 
     from ..analysis import bunching_rd as brd
     from ..analysis.diversion import excluded_share
     from ..analysis.exposure_did import event_study
+    from ..data import crz_entries
     from ..models import mfd
     from ..panel.build import bus_segment_panel, reservoir_panel
 
-    crz = pl.concat(
-        [pl.read_parquet(f) for f in sorted(glob.glob("data/raw/crz_entries/*.parquet"))],
-        how="diagonal_relaxed",
-    )
+    # Via the data layer rather than a glob on data/raw, so `MTWIN_USE_SAMPLE=1`
+    # regenerates the same figures from the committed sample tables.
+    crz = crz_entries.load()
     cars = brd.block_profile(crz, vehicle_class="1 - Cars, Pickups and Vans")
     taxi = brd.block_profile(crz, vehicle_class="TLC Taxi/FHV")
     print(fig_bunching(cars, taxi, brd.estimate(cars), brd.estimate(taxi)))
+
+    # The three-threshold panel is the sign test, and the README leans on it, so
+    # it is regenerated here rather than left as a one-off from a notebook.
+    profiles = brd.threshold_profiles(crz)
+    results = {n: brd.estimate(p, threshold=brd.THRESHOLDS[n]["minute"]) for n, p in profiles.items()}
+    print(fig_thresholds(profiles, results))
 
     panel = reservoir_panel()
     pre = pl.col("service_date") < date(2024, 6, 1)
@@ -171,9 +176,6 @@ def main() -> None:
 
     print(fig_excluded_share(excluded_share()))
 
-
-if __name__ == "__main__":
-    main()
 
 
 def fig_thresholds(profiles: dict, results: dict) -> Path:
@@ -206,3 +208,7 @@ def fig_thresholds(profiles: dict, results: dict) -> Path:
         fontsize=11, x=0.01, ha="left",
     )
     return _save(fig, "fig5_thresholds.png")
+
+
+if __name__ == "__main__":
+    main()
