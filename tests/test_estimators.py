@@ -106,3 +106,18 @@ def test_twin_forward_does_not_read_speed_from_inputs():
 
     params = list(inspect.signature(Twin.forward).parameters)
     assert params == ["self", "feats", "res_onehot", "n_jam"]
+
+
+def test_experiment_default_epochs_is_converged():
+    """`make experiments` must reproduce the published numbers.
+
+    The rollout is still converging at 400 epochs (post-RMSE 0.456 against 0.281
+    at 1500), and because the three arms keep their ordering either way, an
+    under-trained default looks fine while disagreeing with the write-up.
+    """
+    import inspect
+
+    from src.mtwin.models.experiments import run_experiments
+
+    default = inspect.signature(run_experiments).parameters["epochs"].default
+    assert default >= 1500, "default epochs too low to reproduce published RMSEs"

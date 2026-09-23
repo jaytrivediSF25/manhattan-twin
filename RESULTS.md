@@ -124,7 +124,7 @@ used as a control):
 
 | Term | Coefficient | SE | t |
 |---|---|---|---|
-| in-cordon × post | **+0.0151** | 0.0062 | 2.46 |
+| in-cordon × post | **+0.0151** | 0.0062 | 2.44 |
 | above-60th × post | +0.0071 | 0.0083 | 0.85 |
 
 That is a **+1.5%** speed effect. But a placebo that pretends the policy began in

@@ -73,8 +73,15 @@ def _slice(T: dict, lo: date, hi: date) -> dict:
     return out
 
 
-def run_experiments(k_jam: float = 120.0, epochs: int = 400, seed: int = 0) -> dict:
-    """Train on the clean pre-period, then run the three headline experiments."""
+def run_experiments(k_jam: float = 120.0, epochs: int = 1500, seed: int = 0) -> dict:
+    """Train on the clean pre-period, then run the three headline experiments.
+
+    The default epoch count is high because the rollout is still converging well
+    past 400: at 400 epochs post-RMSE is 0.456, at 1500 it is 0.281. Leaving the
+    default low meant `make experiments` quietly reported an under-trained model
+    whose numbers did not match the write-up -- the arms keep their ordering, so
+    nothing looks obviously broken, which is what makes it worth pinning here.
+    """
     torch.manual_seed(seed)
     panel = reservoir_panel()
     T = build_tensors(panel, k_jam=k_jam)

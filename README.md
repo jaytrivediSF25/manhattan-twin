@@ -10,7 +10,8 @@
   <img alt="PyTorch" src="https://img.shields.io/badge/PyTorch-2.14-EE4C2C?logo=pytorch&logoColor=white">
   <img alt="Polars" src="https://img.shields.io/badge/Polars-1.44-CD792C?logo=polars&logoColor=white">
   <img alt="DuckDB" src="https://img.shields.io/badge/DuckDB-1.5-FFF000?logo=duckdb&logoColor=black">
-  <img alt="tests" src="https://img.shields.io/badge/tests-6%20passing-1baf7a">
+  <img alt="tests" src="https://img.shields.io/badge/tests-7%20passing-1baf7a">
+  <img alt="reproducible" src="https://img.shields.io/badge/reproducible-15s%2C%20no%20downloads-1baf7a">
   <img alt="data" src="https://img.shields.io/badge/data-43%20months%20×%208%20sources-2a78d6">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-555">
 </p>
@@ -84,7 +85,7 @@ surrender.
 | Vehicle class | Jump at 21:00 | Toll faced |
 |---|--:|---|
 | **Cars, pickups, vans** | **+28.6%** | Time-varying, $9 → $2.25 |
-| Single-unit trucks | +12.5% | Time-varying |
+| Single-unit trucks | +8.8% | Time-varying |
 | **TLC taxi / FHV** | **+3.8%** | Flat per-trip fee |
 | Buses / motorcycles | ~0% | — |
 
@@ -114,7 +115,7 @@ diverted traffic — so it is estimated separately.
 
 | Specification | Estimate | t |
 |---|--:|--:|
-| In-cordon × post | **+1.5%** | 2.46 |
+| In-cordon × post | **+1.5%** | 2.44 |
 | Above-60th × post (spillover) | +0.7% | 0.85 |
 | **Placebo: pretend policy began Jan 2024** | **−1.2%** | −2.09 |
 
@@ -223,22 +224,49 @@ v_r(t)  = P_r(n_r(t)) / n_r(t)                         # speed
 P_r(n)  = n · v_free,r · f_θ(n / n_jam,r)              # f_θ decreasing by construction
 ```
 
-## Quickstart
+## Quickstart — reproduces every headline number in ~15 seconds
+
+No downloads required. `data/sample/` holds 6 MB of committed derived tables,
+enough to regenerate the results above from a clean clone:
 
 ```bash
+git clone https://github.com/jaytrivediSF25/manhattan-twin && cd manhattan-twin
 uv sync
-make data          # all seven sources, ~4 GB, cached per month
-make experiments   # twin + ablation + frozen-physics
-make figures       # regenerate the four figures
+make quickstart    # headline numbers + all five figures, ~15s, no network
 make test
 ```
 
-Every pull is cached per month, so re-running is a no-op. Individual sources:
+Every figure in this README regenerates byte-identically from that path.
+
+<details>
+<summary><strong>Running the full pipeline from source data</strong></summary>
 
 ```bash
-uv run python -m src.mtwin.data bus     # crz · bt · dot · subway · weather
+make data          # all eight sources, ~4 GB, several hours, cached per month
+make experiments   # twin + ablation + frozen-physics
+make figures       # regenerate all five figures
+```
+
+Individual sources:
+
+```bash
+uv run python -m src.mtwin.data bus   # crz · bt · dot · subway · weather · closures · citibike
 uv run python -c "from src.mtwin.data import tlc; tlc.pull_yellow()"
 ```
+
+Every pull is cached per month, so re-running is a no-op.
+
+**Data source selection.** `MTWIN_USE_SAMPLE=1` forces the committed sample,
+`=0` forces `data/raw/`. Unset, it uses `data/raw/` when present and falls back
+to the sample only when `data/raw/` is absent entirely — so a half-finished pull
+is never silently topped up with committed aggregates.
+
+Two analyses need the full pull and degrade gracefully without it: the
+mode-shift term in the decomposition (needs subway and bridge/tunnel data) and
+the DOT link-speed diversion check. The excluded-roadway-share instrument that
+the diversion result actually cites works from the sample.
+
+</details>
 
 ## Layout
 
@@ -251,6 +279,7 @@ src/mtwin/
   models/    reservoir partition · MFD · the twin · experiments
   figures/   publication figures
 tests/       regression tests for the estimator bugs below
+data/sample/ 6 MB of committed derived tables — the zero-download path
 outputs/     figures and tables
 ```
 
