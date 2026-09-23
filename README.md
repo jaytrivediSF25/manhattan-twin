@@ -1,8 +1,8 @@
 <h1 align="center">manhattan-twin</h1>
 
 <p align="center">
-  <strong>A physics-constrained digital twin of the Manhattan congestion zone —<br>
-  and a test of whether it survives contact with a real policy shock.</strong>
+  <strong>What happened to Manhattan traffic when congestion pricing started?<br>
+  A traffic model built on 43 months of NYC and MTA open data.</strong>
 </p>
 
 <p align="center">
@@ -18,16 +18,21 @@
 ---
 
 Congestion pricing began in the Manhattan CBD on **5 January 2025** — a $9 peak
-toll on a cordon below 60th Street. That is a clean before-and-after on a
-network with unusually good open data, so it is a natural test of a claim people
-make about traffic digital twins: that the gap between a physics model's
-prediction and reality measures *human behaviour*.
+toll on a cordon below 60th Street, and a rare clean before-and-after on a
+network with unusually good open data.
 
-This repository builds that twin, runs it across the shock, and checks the claim.
-**It does not hold up** — and it fails for a reason more interesting than the
-usual one. The residual is not merely contaminated by drift; it *never grows*.
-Congestion pricing changed when people drove without degrading a road-physics
-model at all, because the physics was never what the toll acted on.
+**The headline finding: drivers did not drive less. They changed *when* they
+drove.** Entries into the zone jump **+24%** the moment the toll drops at 21:00,
+and fall **−43%** the moment it rises at 05:00. The response reverses with the
+direction of the price change, which is what makes it causal rather than
+coincidental.
+
+The second finding is about method. This project was built to test a claim
+people make about traffic digital twins — that the gap between a physics model's
+prediction and reality measures human behaviour. **It does not hold up**, and it
+fails in an unexpected way: the gap never grows at all. The model predicts the
+policy period slightly *better* than ordinary periods, because drivers retimed
+their trips while the road physics the model describes never changed.
 
 ## Results at a glance
 
@@ -35,10 +40,15 @@ model at all, because the physics was never what the toll acted on.
 |---|---|---|
 | 🎯 | Entries move with the price at **all three** toll thresholds — and reverse where the toll *rises* | **Clean causal result** |
 | 💵 | Semi-elasticity **−0.12 to −0.31**; response settles to a **~22% plateau** | Transferable, durable |
-| 📐 | The fundamental diagram is **invariant** across the policy | Physics holds |
-| ✅ | Imposing the physics **beats** leaving it free, 6/6 runs | Constraint earns its place |
-| ❌ | The twin's forecast error across the policy sits **below** its own placebo band | **Premise fails** |
+| ❌ | The model's forecast error across the policy sits **below** its own placebo band | **Premise fails** |
 | 📉 | Speed effect **+1.9%** on running speed; synthetic control inconclusive | Not identified |
+| 📐 | The traffic fundamental diagram is **invariant** across the policy | Physics holds |
+| ✅ | Imposing that physics **beats** leaving it free, 6/6 runs | Constraint earns its place |
+
+**Data:** 43 months (2023–2026) across eight NYC and MTA open-data sources —
+bus segment speeds, taxi and for-hire trip records, congestion-zone entry counts
+at 10-minute resolution, bridge and tunnel crossings, subway ridership, road
+sensor speeds, Citi Bike, and weather.
 
 ---
 
@@ -269,6 +279,40 @@ and a biased coefficient does not. All four are pinned by tests in `tests/`:
 Platform specifics: Python 3.12 (torch wheels do not cover 3.14 yet), MPS used
 when available. Socrata will time out on unfiltered aggregates, needs a stable
 `$order` for offset paging, and rejects `:id` ordering on grouped queries.
+
+## What I'd do differently
+
+Four things I got wrong, kept, and would change if I started again. They are
+here because the errors were more instructive than the results.
+
+**I compared the wrong two things, and it reversed a conclusion.** My first
+ablation set the constrained model against an unconstrained *regression* — two
+different architectures — and I reported that the physics lost. It hadn't. Once
+I held the architecture fixed and varied only the constraint, the physics won
+6/6 runs. The lesson is that an ablation has to isolate one thing, and I didn't
+check that mine did until the result looked surprising enough to re-examine.
+
+**I trusted a perfect fit.** The first synthetic control matched the pre-period
+exactly, RMSE 0.0000. That should have been alarming immediately — 326 donors
+against 24 pre-periods can memorise anything — but a clean number is seductive
+and I nearly wrote it up. I'd now treat any suspiciously good in-sample fit as a
+bug report rather than a result.
+
+**I picked the observable before checking what it covered.** The obvious data
+source was the city's road-sensor speed feed. It has 25 Manhattan links, all
+highways, and the ones inside the zone are on roads that are *exempt from the
+toll*. An hour of checking coverage before building would have saved the
+redesign.
+
+**I under-weighted measurement.** Bus speed blends driving time with time
+stopped at the kerb, and dwell doesn't respond to congestion. That single fact
+was attenuating the effect by ~40% and making a placebo look significant.
+Separating the two did more for identification than any estimator change I made.
+
+If I continued this, the highest-value next step is a cross-city control group.
+Every control here is inside New York and shares city-wide shocks with the
+treated units, which is the weakness the design most needs to fix — and it isn't
+solvable with open data for this period.
 
 ## Full write-up
 
