@@ -230,3 +230,43 @@ def reservoir_panel(min_trips: int = 20) -> pl.DataFrame:
         d = d.join(wx.select(["service_date", "rain_day", "snow_day", "tmax_c"]),
                    on="service_date", how="left")
     return d.filter(pl.col("speed_mph").is_finite() & (pl.col("speed_mph") > 0))
+
+
+def fhv_od_panel() -> pl.DataFrame:
+    """OD-pair x month panel from high-volume FHV records.
+
+    FHV is the only trip source with real outer-borough coverage: yellow taxis
+    barely leave Manhattan, which left the never-taker group in the taxi
+    exposure design at 44 OD pairs from a churning set. FHV supplies 3,522.
+
+    Stored compacted. The month-by-month cell files are ~217 MB each (8.5 GB in
+    total) because the citywide OD x date x hour cell space is enormous, while
+    the panel the exposure design actually consumes is 2.8 MB. `tlc.compact_fhv`
+    rebuilds this from the cells, and `tlc.pull_fhv` rebuilds the cells.
+    """
+    from ..data.socrata import RAW
+
+    path = RAW / "fhv_od_monthly.parquet"
+    if not path.exists():
+        return pl.DataFrame()
+
+    zg = zone_groups()
+    d = (
+        pl.read_parquet(path)
+        .join(zg.select(pl.col("zone_id").alias("pu"), pl.col("grp").alias("pu_grp")), on="pu")
+        .join(zg.select(pl.col("zone_id").alias("do_"), pl.col("grp").alias("do_grp")), on="do_")
+    )
+    d = d.with_columns(
+        pl.when((pl.col("pu_grp") == "crz") & (pl.col("do_grp") == "crz")).then(pl.lit("crz"))
+        .when((pl.col("pu_grp") == "above60") & (pl.col("do_grp") == "above60")).then(pl.lit("above60"))
+        .when((pl.col("pu_grp") == "outer") & (pl.col("do_grp") == "outer")).then(pl.lit("outer"))
+        .otherwise(pl.lit("mixed")).alias("grp")
+    ).filter(pl.col("grp") != "mixed")
+
+    d = d.with_columns(
+        [
+            (pl.col("veh_miles") / (pl.col("veh_seconds") / 3600)).alias("speed_mph"),
+            (pl.col("pu").cast(pl.Utf8) + "_" + pl.col("do_").cast(pl.Utf8)).alias("unit"),
+        ]
+    )
+    return _add_design_cols(d)

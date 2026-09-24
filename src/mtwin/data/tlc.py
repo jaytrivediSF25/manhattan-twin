@@ -391,3 +391,52 @@ def load_fhv() -> pl.DataFrame:
 
 def pull(start: date = reg.DATA_START, end: date = reg.DATA_END) -> None:
     pull_yellow(start, end)
+
+
+def compact_fhv() -> Path:
+    """Reduce the FHV cell files to the monthly OD panel the analysis uses.
+
+    The cells are ~217 MB per month -- 8.5 GB across the span -- because the
+    citywide OD x date x hour cell space is enormous. The exposure design only
+    ever consumes weekday-daytime monthly aggregates, which come to 2.8 MB, so
+    the cells are a staging format rather than something worth keeping.
+
+    Streamed one month at a time: the full set does not fit in memory.
+    """
+    out = RAW / "fhv_od_monthly.parquet"
+    files = sorted((RAW / SUBDIR_FHV).glob("*.parquet"))
+    if not files:
+        raise FileNotFoundError(f"no FHV cells in {RAW / SUBDIR_FHV}; run pull_fhv() first")
+
+    frames = []
+    for f in files:
+        frames.append(
+            pl.scan_parquet(f)
+            .filter(
+                pl.col("hour").is_between(7, 19)
+                & pl.col("dow").is_between(1, 5)
+                & (pl.col("n_trips") >= 5)
+            )
+            .group_by(
+                ["pu", "do_", (pl.col("service_date").dt.year() * 12
+                               + pl.col("service_date").dt.month()).alias("period")]
+            )
+            .agg(
+                [
+                    (pl.col("mean_miles") * pl.col("n_trips")).sum().alias("veh_miles"),
+                    (pl.col("mean_seconds") * pl.col("n_trips")).sum().alias("veh_seconds"),
+                    pl.col("n_trips").sum().alias("n_trips"),
+                ]
+            )
+            .collect(engine="streaming")
+        )
+
+    d = (
+        pl.concat(frames)
+        .group_by(["pu", "do_", "period"])
+        .agg([pl.col("veh_miles").sum(), pl.col("veh_seconds").sum(), pl.col("n_trips").sum()])
+        .filter(pl.col("n_trips") >= 30)
+    )
+    d.write_parquet(out)
+    log.info("fhv compacted: %d rows -> %s", d.height, out.name)
+    return out

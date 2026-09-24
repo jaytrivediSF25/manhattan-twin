@@ -42,7 +42,7 @@ their trips while the road physics the model describes never changed.
 | 🎯 | Entries move with the price at **all three** toll thresholds — and reverse where the toll *rises* | **Clean causal result** |
 | 💵 | Semi-elasticity **−0.12 to −0.31**; response settles to a **~22% plateau** | Transferable, durable |
 | ❌ | The model's forecast error across the policy sits **below** its own placebo band | **Premise fails** |
-| 📉 | Speed effect **+1.9%** on running speed; synthetic control inconclusive | Not identified |
+| 📉 | Speed effect **+1.9%** on running speed; 80× more controls leaves the placebo just as significant | Not identified |
 | 📐 | The traffic fundamental diagram is **invariant** across the policy | Physics holds |
 | ✅ | Imposing that physics **beats** leaving it free, 6/6 runs | Constraint earns its place |
 
@@ -121,6 +121,14 @@ diverted traffic — so it is estimated separately.
 
 A placebo using pre-period data only produces a "significant" effect of
 comparable size and opposite sign. Pre-trends are as large as the effect.
+
+**More data does not rescue it.** Swapping yellow taxis for high-volume FHV
+records raises the never-taker pool from 44 OD pairs to **3,522**, on 165k
+observations — and the effect (+0.55%, t=3.58) and the placebo (−0.50%,
+t=−3.48) simply become significant *together*. Eighty times the control group
+moved both t-statistics and left their ratio at 1.1. The obstacle is
+identification, not power, which is worth knowing before anyone spends money on
+more data.
 
 ## 4. No diversion onto untolled roads
 
